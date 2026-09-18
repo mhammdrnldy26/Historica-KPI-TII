@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Portal Plant Site Management - Integrated DB & Roles</title>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Times+New+Roman&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+    
+    body { font-family: 'Inter', sans-serif; background-color: #030712; color: #f8fafc; }
+    .kpi-title { font-family: 'Times New Roman', serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    .cyan-box { border: 1.5px solid #00e5ff; background-color: #000000; border-radius: 4px; }
+
+    .kpi-table th, .kpi-table td { border: 1px solid #00e5ff; padding: 4px 6px; text-align: center; font-size: 10.5px; white-space: nowrap; }
+    .kpi-table th { background-color: #0b1329; color: #ffffff; font-weight: 700; }
+    .kpi-table td { background-color: #020617; color: #e2e8f0; font-family: 'JetBrains Mono', monospace; }
+
+    .vertical-text-container {
+      writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; letter-spacing: 0.15em; font-weight: 700; font-style: italic; color: #e2e8f0; background-color: #020617; border: 1px solid #00e5ff; padding: 12px 6px; font-size: 13px;
+    }
+
+    .excel-header {
+      background-color: #1e3a8a !important; color: #ffffff !important; font-weight: 700 !important; font-size: 11px; white-space: nowrap; border: 1px solid #1e40af; padding: 7px 10px; text-align: center; user-select: none;
+    }
+    
+    .sticky-col-1 { position: sticky; left: 0; z-index: 20; min-width: 40px; }
+    .sticky-col-2 { position: sticky; left: 40px; z-index: 20; min-width: 80px; }
+    
+    .sticky-hm-1 { position: sticky; left: 0; z-index: 20; min-width: 35px; }
+    .sticky-hm-2 { position: sticky; left: 35px; z-index: 20; min-width: 75px; }
+    
+    .custom-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #00e5ff; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-track { background: #020617; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-200 bg-[#030712]">
+
+  <!-- ========================================== -->
+  <!-- HALAMAN LOGIN (SISTEM MULTI-PERAN) -->
+  <!-- ========================================== -->
+  <div id="loginScreen" class="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950 bg-opacity-95 backdrop-blur-sm">
+    <div class="bg-black border border-cyan-500/50 p-8 rounded-xl shadow-[0_0_40px_rgba(0,229,255,0.15)] w-full max-w-sm relative overflow-hidden">
+      <div class="absolute -top-10 -right-10 w-24 h-24 bg-cyan-500 rounded-full blur-3xl opacity-20"></div>
+      
+      <div class="text-center mb-8">
+        <div class="w-16 h-16 mx-auto bg-slate-900 border-2 border-cyan-400 text-cyan-400 rounded-full flex items-center justify-center text-3xl mb-4 shadow-[0_0_15px_rgba(0,229,255,0.3)]">
+          <i class="fa-solid fa-shield-halved"></i>
+        </div>
+        <h2 class="text-xl font-bold text-white tracking-wide uppercase">Plant Site Portal</h2>
+        <p class="text-[10px] text-cyan-400 font-mono mt-1">Enterprise Access Control</p>
+      </div>
+
+      <form onsubmit="handleLogin(event)" class="space-y-5">
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5"><i class="fa-solid fa-user mr-1 text-cyan-500"></i> Username</label>
+          <input type="text" id="loginUser" class="w-full bg-slate-900 border border-slate-700 text-white text-sm px-3 py-2.5 rounded outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition" placeholder="Username..." autocomplete="off" />
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5"><i class="fa-solid fa-lock mr-1 text-cyan-500"></i> Password</label>
+          <input type="password" id="loginPass" class="w-full bg-slate-900 border border-slate-700 text-white text-sm px-3 py-2.5 rounded outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition" placeholder="••••••••" />
+        </div>
+        <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-sm px-4 py-2.5 rounded transition shadow-[0_0_10px_rgba(0,229,255,0.2)]">
+          MASUK KE SISTEM <i class="fa-solid fa-arrow-right-to-bracket ml-1"></i>
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- APLIKASI UTAMA -->
+  <!-- ========================================== -->
+  <div id="dashboardApp" class="hidden flex-col min-h-screen">
+    
+    <header class="bg-slate-950 text-white sticky top-0 z-50 border-b border-cyan-500/40 shadow-2xl">
+      <div class="max-w-[1750px] mx-auto px-4 h-16 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+          <div class="w-10 h-10 rounded border border-cyan-400 bg-black flex items-center justify-center text-cyan-400 text-lg shadow">
+            <i class="fa-solid fa-industry"></i>
+          </div>
+          <div>
+            <h1 class="text-sm sm:text-base font-bold tracking-wide text-white uppercase">Portal Plant Site Management</h1>
+            <p class="text-[10px] text-cyan-400 font-mono">SITE TII-SCM-KONAWE | Independent Upload (DMBD & HM)</p>
+          </div>
+        </div>
+
+        <!-- NAVIGATION TABS -->
+        <nav class="flex space-x-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800 text-xs font-semibold overflow-x-auto custom-scroll">
+          <button id="navKpi" onclick="switchTab('kpi')" class="px-3.5 py-2 rounded-lg transition flex items-center gap-2 bg-[#00e5ff] text-slate-950 font-bold shadow">
+            <i class="fa-solid fa-chart-line"></i> Dashboard KPI
+          </button>
+          <button id="navPareto" onclick="switchTab('pareto')" class="px-3.5 py-2 rounded-lg transition flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800">
+            <i class="fa-solid fa-chart-pie"></i> Pareto & Open BD
+          </button>
+          <button id="navHmUpdate" onclick="switchTab('hmupdate')" class="px-3.5 py-2 rounded-lg transition flex items-center gap-2 text-amber-400 hover:text-amber-300 hover:bg-slate-800 font-bold border border-amber-500/30">
+            <i class="fa-solid fa-calendar-days"></i> HM UPDATE
+          </button>
+          <button id="navDmbd" onclick="switchTab('dmbd')" class="px-3.5 py-2 rounded-lg transition flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800">
+            <i class="fa-solid fa-truck-ramp-box"></i> Historical DMBD
+          </button>
+          <button id="navDatabase" onclick="switchTab('database')" class="px-3.5 py-2 rounded-lg transition flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800">
+            <i class="fa-solid fa-database"></i> Sheet DATABASE
+          </button>
+
+          <!-- TAB KHUSUS OWNER -->
+          <button id="navSettings" onclick="switchTab('settings')" class="hidden px-3.5 py-2 rounded-lg transition flex items-center gap-2 text-rose-400 hover:text-rose-300 hover:bg-slate-800 font-bold border border-rose-500/30">
+            <i class="fa-solid fa-user-shield"></i> Pengaturan Owner
+          </button>
+        </nav>
+
+        <div class="flex items-center space-x-4 shrink-0">
+          
+          <!-- PROFIL USER -->
+          <div class="hidden sm:flex items-center space-x-2 text-right border-r border-slate-700 pr-4">
+            <div class="flex flex-col">
+              <span id="displayUserName" class="text-xs font-bold text-white uppercase">User</span>
+              <span id="displayUserRole" class="text-[10px] font-mono font-bold text-cyan-400">ROLE</span>
+            </div>
+            <div class="w-8 h-8 rounded-full bg-slate-800 border border-cyan-500 flex items-center justify-center text-cyan-500">
+              <i class="fa-solid fa-user-check text-xs"></i>
+            </div>
+          </div>
+
+          <!-- AREA UPLOAD & LOGOUT -->
+          <div class="flex items-center space-x-2">
+            <div id="uploadActionArea" class="flex space-x-2">
+              <input type="file" id="dmbdUpload" accept=".xlsx, .xls" class="hidden" onchange="handleDmbdUpload(event)" />
+              <button onclick="document.getElementById('dmbdUpload').click()" class="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 font-semibold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-file-excel"></i> DMBD
+              </button>
+
+              <input type="file" id="hmUpload" accept=".xlsx, .xls" class="hidden" onchange="handleHmUpload(event)" />
+              <button onclick="document.getElementById('hmUpload').click()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 border border-amber-500 font-semibold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5 shadow">
+                <i class="fa-solid fa-gauge-high"></i> HM
+              </button>
+            </div>
+
+            <!-- Tombol Logout (Selalu Muncul) -->
+            <button onclick="handleLogout()" class="bg-slate-800 hover:bg-rose-900 text-slate-300 hover:text-white border border-slate-700 hover:border-rose-500 font-semibold px-3 py-2 rounded-lg text-xs transition flex items-center gap-1.5 ml-2">
+              <i class="fa-solid fa-power-off"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main class="max-w-[1750px] mx-auto px-4 py-4 flex-1 w-full space-y-4 overflow-hidden">
+
+      <!-- TAB 1: DASHBOARD KPI -->
+      <div id="viewKpi" class="space-y-3">
+        <div class="w-full border-2 border-[#00e5ff] p-4 bg-black shadow-2xl space-y-3">
+          <header class="relative flex flex-col items-center justify-center border-b-2 border-[#00e5ff] pb-3 pt-1">
+            <div class="absolute left-2 top-1 flex items-center gap-2">
+              <span class="text-[11px] text-slate-400 font-mono">Jumlah Hari:</span>
+              <input type="number" id="kpiDays" value="29" onkeyup="updateMohhFromDays()" onchange="updateMohhFromDays()" class="w-12 bg-black border border-cyan-500 text-cyan-400 text-xs px-1 py-0.5 rounded text-center font-bold outline-none" />
+              <i class="fa-solid fa-xmark text-[10px] text-slate-600"></i>
+              <span class="text-[11px] text-slate-500 font-mono font-bold">24</span>
+              <span class="text-[11px] text-slate-400 font-mono">=</span>
+              <span class="text-[11px] text-slate-400 font-mono ml-1">MOHH:</span>
+              <input type="number" id="kpiMohh" value="696" readonly class="w-16 bg-slate-900 border border-slate-700 text-cyan-200 text-xs px-1 py-0.5 rounded text-center font-bold cursor-not-allowed outline-none" />
+              
+              <span class="text-[11px] text-slate-400 font-mono ml-4">Plan PA:</span>
+              <input type="number" step="0.01" id="kpiPlanPa" value="85.74" onchange="refreshAllViews()" class="w-16 bg-black border border-cyan-500 text-cyan-400 text-xs px-1 py-0.5 rounded text-center font-bold outline-none focus:ring-1 focus:ring-cyan-400" />
+              <span class="text-[10px] text-slate-400">%</span>
+            </div>
+            <h2 class="kpi-title text-3xl sm:text-4xl font-bold tracking-wider text-white text-center">Key Performance Indicator</h2>
+            <p id="dashboardDate" class="text-xs text-slate-300 font-semibold mt-1">17-Sep-2026</p>
+            <div class="absolute right-2 top-1 flex items-center gap-2">
+              <label class="text-[11px] text-slate-400 font-semibold">Pilih Fleet:</label>
+              <select id="fleetFilter" onchange="refreshAllViews()" class="bg-black text-[#00e5ff] border border-[#00e5ff] text-xs px-2.5 py-1 rounded outline-none font-bold">
+                <option value="EXCA" selected>EXCAVATOR (EX-001 s/d EX-009)</option>
+                <option value="HAULER">DUMP TRUCK OWNED (Non-Rental)</option>
+                <option value="RENTAL">DUMP TRUCK RENTAL (DT-041 s/d DT-060)</option>
+                <option value="SUPPORT">UNIT SUPPORT (28 Unit Support)</option>
+                <option value="ALL">ALL FLEET (Seluruh Unit Plant)</option>
+              </select>
+            </div>
+          </header>
+
+          <div class="cyan-box p-3">
+            <div class="overflow-x-auto custom-scroll">
+              <div id="mainChartContainer" class="h-[290px] w-full min-w-full relative"><canvas id="mainComboChart"></canvas></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-3">
+            <div class="lg:col-span-4 cyan-box p-3 flex flex-col justify-between">
+              <div class="text-[11px] font-bold text-[#00e5ff] uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Breakdown by Status Code</span><i class="fa-solid fa-chart-pie text-xs"></i>
+              </div>
+              <div class="h-[180px] w-full flex items-center justify-center mt-2"><canvas id="pieStatusCodeChart"></canvas></div>
+              <div id="pieLegendBadge" class="flex flex-wrap gap-1.5 justify-center text-[9px] mt-3 pb-1 text-slate-300"></div>
+            </div>
+            <div class="lg:col-span-8 cyan-box p-3 flex flex-col justify-between">
+              <div class="text-[11px] font-bold text-[#00e5ff] uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>MTBF vs MTTR per Code Unit</span><i class="fa-solid fa-chart-bar text-xs"></i>
+              </div>
+              <div class="overflow-x-auto custom-scroll">
+                <div id="mtbfChartContainer" class="h-[230px] w-full min-w-full relative"><canvas id="mtbfMttrChart"></canvas></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cyan-box p-2 overflow-x-auto custom-scroll">
+            <table class="w-full kpi-table border-collapse">
+              <thead><tr id="matrixHeaderRow"><th class="w-32 bg-slate-900 text-left pl-3 sticky-col-1 z-30">Monthly</th></tr></thead>
+              <tbody id="matrixBody"></tbody>
+            </table>
+          </div>
+          <div class="cyan-box p-2 overflow-x-auto custom-scroll">
+            <div class="flex items-stretch">
+              <div class="vertical-text-container mr-1 rounded-sm flex items-center justify-center">Breakdown Achievement</div>
+              <table class="w-full kpi-table border-collapse flex-1">
+                <thead><tr id="baHeaderRow"><th class="w-28 bg-slate-900 text-left pl-3 sticky-col-1 z-30">TYPE</th></tr></thead>
+                <tbody id="baHoursBody"></tbody>
+                <tbody id="baPercentBody" class="border-t-2 border-[#00e5ff]"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="cyan-box p-2 overflow-x-auto custom-scroll">
+            <table class="w-full kpi-table border-collapse">
+              <thead><tr id="mtbfHeaderRow"><th class="w-32 bg-slate-900 text-left pl-3 sticky-col-1 z-30">METRIC</th></tr></thead>
+              <tbody id="mtbfBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 2: HM UPDATE -->
+      <div id="viewHmUpdate" class="hidden space-y-3">
+        <div class="bg-slate-900 p-4 rounded-xl border border-amber-500/40 shadow flex justify-between items-center text-xs">
+          <div>
+            <h3 class="font-bold text-amber-400 text-sm"><i class="fa-solid fa-calendar-days mr-2"></i>Tabel Master "HM UPDATE" Bulanan</h3>
+            <p class="text-[11px] text-slate-400 mt-0.5">Format tabel disusun presisi mengikuti template Excel. Total: <b id="hmRowCount" class="text-white">0</b> Unit.</p>
+          </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow overflow-hidden relative">
+          <div class="overflow-x-auto custom-scroll max-h-[640px] w-full">
+            <table class="text-left border-collapse text-[10px] whitespace-nowrap table-fixed">
+              <thead id="hmUpdateHead" class="sticky top-0 z-40 bg-slate-950 text-slate-300 border-b border-slate-700 font-bold uppercase text-[9px] shadow-sm">
+              </thead>
+              <tbody id="hmUpdateBody" class="divide-y divide-slate-800 font-mono text-[10.5px]"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: PARETO & PROBLEM IDENTIFICATION (OPEN BD TRACKER) -->
+      <div id="viewPareto" class="hidden space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div class="lg:col-span-8 cyan-box p-4 flex flex-col justify-between">
+            <div class="flex justify-between items-center mb-2 border-b border-cyan-500/30 pb-2">
+              <h3 class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+                <i class="fa-solid fa-chart-column text-cyan-400"></i> Diagram Pareto Kerusakan
+              </h3>
+              <div class="flex items-center gap-3">
+                <select id="paretoFleetFilter" onchange="renderParetoAndPica()" class="bg-slate-950 border border-slate-700 text-cyan-400 px-2 py-1 rounded text-xs font-bold outline-none">
+                  <option value="ALL">Semua Unit (All)</option>
+                  <option value="HAULER">Dump Truck Owned</option>
+                  <option value="RENTAL">Dump Truck Rental</option>
+                  <option value="EXCA">Excavator (EX)</option>
+                  <option value="SUPPORT">Unit Support</option>
+                </select>
+                <div class="flex gap-2">
+                  <button id="btnParetoDt" onclick="setParetoMetric('downtime')" class="px-2 py-1 rounded text-xs font-bold bg-cyan-600 text-white shadow-sm">By Downtime</button>
+                  <button id="btnParetoFreq" onclick="setParetoMetric('frequency')" class="px-2 py-1 rounded text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700">By Frequency</button>
+                </div>
+              </div>
+            </div>
+            <div class="h-[320px] w-full relative"><canvas id="paretoChart"></canvas></div>
+          </div>
+
+          <div class="lg:col-span-4 cyan-box p-4 flex flex-col justify-between">
+            <div class="overflow-y-auto custom-scroll max-h-[350px]">
+              <table class="w-full text-left text-[11px] border-collapse whitespace-nowrap">
+                <thead class="bg-slate-900 text-slate-400 sticky top-0 z-10 text-[9px] uppercase">
+                  <tr class="border-b border-slate-800">
+                    <th class="py-1.5 px-2 text-center">No</th>
+                    <th class="py-1.5 px-2">Komponen</th>
+                    <th class="py-1.5 px-2 text-right text-orange-400">Jam (DT)</th>
+                    <th class="py-1.5 px-2 text-right text-cyan-400">Freq</th>
+                    <th class="py-1.5 px-2 text-right text-emerald-400">Kum.%</th>
+                  </tr>
+                </thead>
+                <tbody id="paretoSummaryBody" class="divide-y divide-slate-800 font-mono text-[10px]"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="cyan-box p-4">
+          <div class="flex justify-between items-center mb-3 border-b border-cyan-500/30 pb-2.5">
+            <h3 class="text-xs sm:text-sm font-bold text-white flex items-center gap-2">
+              <i class="fa-solid fa-triangle-exclamation text-rose-500 animate-pulse"></i> Problem Identification (Active Breakdown)
+            </h3>
+            <span class="text-xs font-mono bg-rose-950 text-rose-400 px-2.5 py-1 rounded border border-rose-800 shadow-sm font-bold">
+              Total Active BD: <b id="openBdCount" class="text-white text-sm">0</b> Unit
+            </span>
+          </div>
+          <div class="overflow-x-auto custom-scroll max-h-[350px]">
+            <table class="w-full text-left text-[11px] border-collapse whitespace-nowrap">
+              <thead class="bg-slate-900 text-cyan-400 sticky top-0 z-10 border-b border-slate-700 font-bold uppercase text-[10px]">
+                <tr>
+                  <th class="p-2.5 border-r border-slate-700">No WO</th>
+                  <th class="p-2.5 border-r border-slate-700 text-center">Tanggal BD (Latest)</th>
+                  <th class="p-2.5 border-r border-slate-700">Unit Code</th>
+                  <th class="p-2.5 border-r border-slate-700 text-center text-amber-400">Status</th>
+                  <th class="p-2.5 border-r border-slate-700">Component</th>
+                  <th class="p-2.5 border-r border-slate-700">Problem / Gejala</th>
+                  <th class="p-2.5 border-r border-slate-700 text-center">Downtime</th>
+                  <th class="p-2.5 border-r border-slate-700">Tindakan Terakhir</th>
+                  <th class="p-2.5 text-center">Status WO</th>
+                </tr>
+              </thead>
+              <tbody id="openBdBody" class="divide-y divide-slate-800 font-mono text-[10.5px]"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: HISTORICAL DMBD -->
+      <div id="viewDmbd" class="hidden space-y-3">
+        <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 shadow flex flex-wrap gap-3 items-center justify-between text-xs">
+          <div class="relative w-64">
+            <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+            <input type="text" id="searchInput" onkeyup="applyFilterDmbd()" placeholder="Cari WO, Unit, Component..." class="w-full pl-8 pr-2 py-1.5 bg-slate-950 border border-slate-700 rounded text-slate-200 focus:ring-1 focus:ring-cyan-500 outline-none" />
+          </div>
+          <div class="flex items-center gap-3 text-xs text-slate-400">
+            <span>Total: <b id="dmbdRowCount" class="text-cyan-400">0</b> baris</span>
+            <div class="flex items-center gap-1">
+              <button onclick="prevPage()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded font-bold"><i class="fa-solid fa-chevron-left"></i></button>
+              <span id="pageInfo" class="px-2 font-medium">Hal 1 / 1</span>
+              <button onclick="nextPage()" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded font-bold"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
+          </div>
+        </div>
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow overflow-hidden">
+          <div class="overflow-x-auto custom-scroll max-h-[640px]">
+            <table class="w-full text-left border-collapse text-[11px] whitespace-nowrap">
+              <thead class="sticky top-0 z-30">
+                <tr>
+                  <th class="excel-header sticky-col-1 bg-blue-700 z-40">NO</th>
+                  <th class="excel-header sticky-col-2 bg-blue-700 z-40">NO WO</th>
+                  <th class="excel-header bg-blue-700">TANGGAL</th><th class="excel-header bg-blue-700">WEEK</th><th class="excel-header bg-blue-700">SHIFT</th><th class="excel-header bg-blue-700">UNIT CODE</th><th class="excel-header bg-blue-700">MANUFACTUR</th><th class="excel-header bg-blue-700">UNIT TYPE</th><th class="excel-header bg-blue-700">UNIT MODEL</th><th class="excel-header bg-blue-700">HM BD</th><th class="excel-header bg-blue-700">KM BD</th><th class="excel-header bg-blue-700">BD DATE</th><th class="excel-header bg-blue-700">BD TIME</th><th class="excel-header bg-blue-700">START</th><th class="excel-header bg-blue-700">STOP</th><th class="excel-header bg-blue-700">TOTAL TIME</th><th class="excel-header bg-blue-700">TOTAL TIME SHIFT</th><th class="excel-header bg-blue-700">STATUS CODE</th><th class="excel-header bg-blue-700">POSITION BD</th><th class="excel-header bg-blue-700">PROBLEM</th><th class="excel-header bg-blue-700">COMPONENT</th><th class="excel-header bg-blue-700">TINDAKAN PERBAIKAN</th><th class="excel-header bg-blue-700">JOB STATUS</th><th class="excel-header bg-blue-700">Man Power I</th><th class="excel-header bg-blue-700">Man Power II</th><th class="excel-header bg-blue-700">Man Power III</th><th class="excel-header bg-blue-700">Man Power IV</th><th class="excel-header bg-blue-700">Man Power V</th><th class="excel-header bg-blue-700">Man Power VI</th><th class="excel-header bg-blue-700">Man Power VII</th><th class="excel-header bg-blue-700">Man Power VIII</th><th class="excel-header bg-blue-700">Man Power IX</th><th class="excel-header bg-blue-700">Man Power X</th><th class="excel-header bg-blue-700">COMPONEN GRUP</th><th class="excel-header bg-blue-700">COMPONEN (Sub)</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody" class="divide-y divide-slate-800"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 5: SHEET DATABASE -->
+      <div id="viewDatabase" class="hidden space-y-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-lg shadow overflow-hidden relative">
+          <div class="overflow-x-auto custom-scroll max-h-[700px] w-full bg-slate-900">
+            <table class="w-full text-left border-collapse text-[11px] whitespace-nowrap">
+              <thead class="sticky top-0 z-40 bg-slate-950 text-cyan-400 font-bold text-center border-b-2 border-slate-700 shadow-sm text-[10px] uppercase">
+                <tr>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 sticky-col-1 bg-slate-950 z-40">No.</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 sticky-col-2 bg-slate-950 z-40">Unit No</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">Manufactur</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">Model</th>
+                  <th colspan="2" class="p-1.5 border border-slate-700 bg-slate-900 text-amber-400">Reading</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-emerald-400">WH</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-400">STB</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-rose-300">BS</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">B0</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">B1</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">B2</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">B3</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">B4</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">B5</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">B6</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">B7</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-orange-400">Total B/D<br>Uns</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-rose-500">Total B/D</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-800 text-cyan-200">Monthly</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-slate-300">BD Freq</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-blue-400">MTBF</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-emerald-400">MTTR</th>
+                  <th colspan="2" class="p-1.5 border border-slate-700 bg-blue-950/40 text-blue-400">Availability</th>
+                  <th rowspan="2" class="p-1.5 border border-slate-700 bg-slate-950 text-emerald-400">MA</th>
+                </tr>
+                <tr>
+                  <th class="p-1.5 border border-slate-700 bg-slate-900 text-amber-200">Start</th>
+                  <th class="p-1.5 border border-slate-700 bg-slate-900 text-amber-200">End</th>
+                  <th class="p-1.5 border border-slate-700 bg-slate-900 text-slate-300">PLAN PA</th>
+                  <th class="p-1.5 border border-slate-700 bg-slate-900 text-cyan-400">ACTUAL PA</th>
+                </tr>
+              </thead>
+              <tbody id="rawDatabaseBody" class="divide-y divide-slate-800 font-mono text-[11px] bg-slate-900"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 6: PENGATURAN OWNER -->
+      <div id="viewSettings" class="hidden space-y-4">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <!-- Form Tambah User -->
+          <div class="cyan-box p-5 lg:col-span-1 h-fit">
+            <h3 class="font-bold text-cyan-400 mb-4 text-sm border-b border-cyan-900 pb-2"><i class="fa-solid fa-user-plus mr-2"></i>Tambah Pengguna Baru</h3>
+            <form id="formAddUser" onsubmit="handleCreateUser(event)" class="space-y-3 text-xs">
+              <div>
+                <label class="block text-slate-400 mb-1">Nama Lengkap / Jabatan</label>
+                <input type="text" id="newName" required class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400" placeholder="Misal: Budi Santoso (SPV)">
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Username (Akses Login)</label>
+                <input type="text" id="newUname" required class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400" placeholder="Tanpa spasi">
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Password</label>
+                <input type="password" id="newPass" required class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400" placeholder="Minimal 5 karakter">
+              </div>
+              <div>
+                <label class="block text-slate-400 mb-1">Level Akses (Role)</label>
+                <select id="newRole" class="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1.5 text-white outline-none focus:border-cyan-400 font-bold">
+                  <option value="ADMIN">ADMIN (Akses & Upload Data)</option>
+                  <option value="PLANNER">PLANNER (Akses & Upload Data)</option>
+                  <option value="VIEWER">VIEWER (Hanya Lihat Dashboard)</option>
+                </select>
+              </div>
+              <button type="submit" class="w-full bg-cyan-600 hover:bg-cyan-500 text-slate-900 font-bold py-2 rounded mt-2 shadow transition"><i class="fa-solid fa-save mr-1"></i> Simpan Pengguna</button>
+            </form>
+          </div>
+
+          <!-- Tabel Daftar User -->
+          <div class="cyan-box p-5 lg:col-span-2">
+            <h3 class="font-bold text-amber-400 mb-4 text-sm border-b border-amber-900 pb-2"><i class="fa-solid fa-users-gear mr-2"></i>Daftar Pengguna Sistem (User Management)</h3>
+            <div class="overflow-x-auto custom-scroll max-h-[350px]">
+              <table class="w-full text-left text-xs border-collapse whitespace-nowrap">
+                <thead class="bg-slate-900 text-slate-400 sticky top-0">
+                  <tr>
+                    <th class="py-2 px-3 border-b border-slate-700">Username</th>
+                    <th class="py-2 px-3 border-b border-slate-700">Nama / Jabatan</th>
+                    <th class="py-2 px-3 border-b border-slate-700 text-center">Role / Level</th>
+                    <th class="py-2 px-3 border-b border-slate-700 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="userTableBody" class="divide-y divide-slate-800">
+                  <!-- Diisi via JS -->
+                </tbody>
+              </table>
+            </div>
+            <div class="mt-4 p-3 bg-slate-900 border border-slate-700 rounded text-[10px] text-slate-400">
+              <b>Info Level Akses:</b><br>
+              - <span class="text-rose-400 font-bold">OWNER</span>: Kontrol penuh sistem & menu pengaturan user (Tidak bisa dihapus).<br>
+              - <span class="text-amber-400 font-bold">ADMIN / PLANNER</span>: Bisa melihat semua dashboard dan mengupload file DMBD/HM.<br>
+              - <span class="text-slate-300 font-bold">VIEWER</span>: Hanya bisa melihat grafik dan tabel (Read-only).
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <script>
+    try { if (typeof Chart !== 'undefined' && typeof ChartDataLabels !== 'undefined') Chart.register(ChartDataLabels); } catch (e) {}
+
+    // =====================================
+    // SISTEM LOGIN & USER MANAGEMENT (RBAC)
+    // =====================================
+    
+    // Inisialisasi Database User dari LocalStorage Browser
+    let appUsers = JSON.parse(localStorage.getItem('plantAppUsers'));
+    if (!appUsers) {
+      // Jika pertama kali dibuka, buat akun default
+      appUsers = {
+        'rnldy26': { pass: 'qwe123', role: 'OWNER', name: 'Renaldy (Owner)' },
+        'planner': { pass: 'plan123', role: 'PLANNER', name: 'Maint. Planner' }
+      };
+      localStorage.setItem('plantAppUsers', JSON.stringify(appUsers));
+    }
+
+    function saveUsers() {
+      localStorage.setItem('plantAppUsers', JSON.stringify(appUsers));
+    }
+
+    window.onload = function() {
+      // Cek sesi login
+      const sessionUser = sessionStorage.getItem('loggedUser');
+      if (sessionUser && appUsers[sessionUser]) {
+        setupAppForUser(sessionUser);
+      }
+
+      try {
+        dmbdDataset = [{ no: 1, wo: "WO-001", tanggal: "2026-06-01", week: "23", shift: "SHIFT 1", unit_code: "EX-001", manufactur: "LIUGONG", unit_type: "EXCAVATOR", unit_model: "938E HD", hm_bd: "1200", km_bd: "-", bd_date: "2026-06-01", bd_time: "07:00", start: "-", stop: "15:00", total_time: "8.00", total_time_shift: "8.00", status_code: "BS", position_bd: "WS", problem: "SERVICE 500 HM", component: "PLANNED MAINTENANCE", tindakan: "GANTI OLI", job_status: "CLOSE", mp1: "FAIZAL", mp2: "-", mp3: "-", mp4: "-", mp5: "-", mp6: "-", mp7: "-", mp8: "-", mp9: "-", mp10: "-", comp_grup: "ENGINE", comp_sub: "FILTER" }];
+        hmUpdateData = { 'EX-001': { model: '938E HD', lokasi: 'DIGGING', hmStart: 1200, hmEnd: 1459.2, wh: 259.2, shifts: [] } };
+        refreshAllViews();
+      } catch (e) { console.error("Critical Start Error:", e); }
+    };
+
+    function handleLogin(e) {
+      e.preventDefault();
+      const user = document.getElementById('loginUser').value.trim();
+      const pass = document.getElementById('loginPass').value.trim();
+      
+      if (appUsers[user] && appUsers[user].pass === pass) {
+        sessionStorage.setItem('loggedUser', user);
+        setupAppForUser(user);
+        refreshAllViews();
+      } else {
+        alert("Username atau Password salah! Akses ditolak.");
+      }
+    }
+
+    function setupAppForUser(userCode) {
+      const u = appUsers[userCode];
+      document.getElementById('loginScreen').classList.add('hidden');
+      document.getElementById('dashboardApp').classList.remove('hidden');
+      document.getElementById('dashboardApp').classList.add('flex');
+      
+      // Update Profil Badge di Kanan Atas
+      document.getElementById('displayUserName').innerText = u.name;
+      document.getElementById('displayUserRole').innerText = u.role;
+      
+      // Terapkan Pembatasan Peran (Role Restriction)
+      const settingBtn = document.getElementById('navSettings');
+      const uploadArea = document.getElementById('uploadActionArea');
+
+      if (u.role === 'OWNER') {
+        settingBtn.classList.remove('hidden');
+        uploadArea.classList.remove('hidden');
+      } else if (u.role === 'PLANNER' || u.role === 'ADMIN') {
+        settingBtn.classList.add('hidden');
+        uploadArea.classList.remove('hidden');
+      } else {
+        // VIEWER
+        settingBtn.classList.add('hidden');
+        uploadArea.classList.add('hidden');
+      }
+    }
+
+    function handleLogout() {
+      sessionStorage.removeItem('loggedUser');
+      location.reload();
+    }
+
+    // FUNGSI MANAGEMENT USER (DI HALAMAN OWNER)
+    function renderUserTable() {
+      const tbody = document.getElementById('userTableBody');
+      if(!tbody) return;
+      tbody.innerHTML = Object.keys(appUsers).map(uname => {
+        const u = appUsers[uname];
+        let roleBadge = `<span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-bold">${u.role}</span>`;
+        if(u.role === 'OWNER') roleBadge = `<span class="px-2 py-0.5 rounded bg-rose-950 text-rose-400 font-bold border border-rose-800">OWNER</span>`;
+        if(u.role === 'ADMIN' || u.role === 'PLANNER') roleBadge = `<span class="px-2 py-0.5 rounded bg-amber-950 text-amber-400 font-bold border border-amber-800">${u.role}</span>`;
+
+        let actionBtn = u.role === 'OWNER' ? `<span class="text-[10px] text-slate-500 italic">Protected</span>` : `<button onclick="deleteUser('${uname}')" class="text-rose-500 hover:text-rose-400 transition bg-slate-900 border border-slate-700 px-2 py-1 rounded shadow"><i class="fa-solid fa-trash"></i> Hapus</button>`;
+
+        return `<tr class="hover:bg-slate-900 transition">
+            <td class="py-2.5 px-3 text-cyan-400 font-bold font-mono">${uname}</td>
+            <td class="py-2.5 px-3 text-slate-300">${u.name}</td>
+            <td class="py-2.5 px-3 text-center">${roleBadge}</td>
+            <td class="py-2.5 px-3 text-center">${actionBtn}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function handleCreateUser(e) {
+      e.preventDefault();
+      const uname = document.getElementById('newUname').value.trim();
+      const pass = document.getElementById('newPass').value.trim();
+      const name = document.getElementById('newName').value.trim();
+      const role = document.getElementById('newRole').value;
+      
+      if(!uname || !pass || !name) return alert("Harap lengkapi semua data!");
+      if(appUsers[uname]) return alert("Gagal: Username tersebut sudah digunakan!");
+      
+      appUsers[uname] = { pass, role, name };
+      saveUsers();
+      renderUserTable();
+      document.getElementById('formAddUser').reset();
+      alert(`Berhasil! Pengguna '${uname}' telah ditambahkan sebagai ${role}.`);
+    }
+
+    function deleteUser(uname) {
+      if(appUsers[uname].role === 'OWNER') return alert("Akun Owner tidak dapat dihapus!");
+      if(confirm(`Yakin ingin menghapus akses untuk pengguna '${uname}'?`)) {
+        delete appUsers[uname];
+        saveUsers();
+        renderUserTable();
+      }
+    }
+
+
+    // =====================================
+    // VARIABEL GLOBAL DASHBOARD LOGIC
+    // =====================================
+    let dmbdDataset = [];
+    let databaseSheetRows = [];
+    let hmUpdateData = {};
+    let allGlobalUnits = [];
+    let currentFilteredDmbd = [];
+    let currentPage = 1;
+    const pageSize = 50;
+    
+    let mainChartInstance = null; let pieChartInstance = null; let mtbfChartInstance = null; let paretoChartInstance = null;
+    let currentParetoMetric = 'downtime';
+
+    const STATUS_CODE_LIST = ['BS', 'BUS', 'B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'B7'];
+    const SUPPORT_UNITS_LIST = ['DZ-001', 'MG-001', 'MG-002', 'MG-003', 'MG-004', 'CP-001', 'CP-002', 'CP-003', 'CP-004', 'FT-001', 'WT-001', 'WT-002', 'WT-003', 'TL-001', 'TL-002', 'TL-003', 'TL-004', 'TL-005', 'TL-006', 'GS-001', 'GS-002', 'GS-003', 'GS-004', 'SS-001', 'CS-001', 'WE-001', 'WE-002', 'TH-001'];
+    
+    const RENTAL_UNITS_LIST = [];
+    for (let i = 41; i <= 60; i++) RENTAL_UNITS_LIST.push("DT-" + String(i).padStart(3, '0'));
+
+    function generateFullDtList() {
+      const list = [];
+      for (let i = 1; i <= 60; i++) list.push("DT-" + String(i).padStart(3, '0'));
+      for (let i = 71; i <= 95; i++) list.push("DT-" + String(i).padStart(3, '0'));
+      return list;
+    }
+
+    let currentKpiData = {
+      units: [], planPA: [], actualPA: [], actualMA: [], acvPA: [],
+      totalSummary: { planPA: 85.74, actualPA: 0, actualMA: 0, acvPA: 0 },
+      mtbf: [], mttr: [], targetMtbf: [], targetMttr: [],
+      statusCodePie: { labels: ['BS', 'B0', 'B1'], values: [50, 30, 20] },
+      baHours: {}
+    };
+
+    function initEmptyBaHours(count) {
+      const obj = {}; STATUS_CODE_LIST.forEach(code => { obj[code] = new Array(count).fill(0.0); }); return obj;
+    }
+
+    // UPLOAD DMBD
+    function handleDmbdUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array', cellDates: true });
+          const sheetName = wb.SheetNames.find(s => s.trim().toUpperCase() === 'DMBD') || wb.SheetNames[0];
+          const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" });
+
+          let hIdx = -1;
+          for (let i = 0; i < Math.min(raw.length, 15); i++) {
+            if (raw[i].map(c => String(c).trim().toUpperCase()).includes("NO WO")) { hIdx = i; break; }
+          }
+          if (hIdx !== -1) {
+            const parsed = [];
+            for (let i = hIdx + 1; i < raw.length; i++) {
+              const r = raw[i];
+              if (!r[1]) continue;
+              
+              parsed.push({
+                no: parsed.length + 1,
+                wo: String(r[1] || "").trim(),
+                tanggal: String(r[2] || "").substring(0, 10),
+                week: String(r[3] || ""),
+                shift: String(r[4] || ""),
+                unit_code: String(r[5] || "").trim().toUpperCase(),
+                manufactur: String(r[6] || ""),
+                unit_type: String(r[7] || ""),
+                unit_model: String(r[8] || ""),
+                hm_bd: String(r[9] || ""),
+                km_bd: String(r[10] || ""),
+                bd_date: String(r[11] || "").substring(0, 10),
+                bd_time: String(r[12] || ""),
+                start: String(r[13] || ""),
+                stop: String(r[14] || ""),
+                total_time: (r[15] !== "" && !isNaN(r[15])) ? Number(r[15]).toFixed(2) : String(r[15] || "0"),
+                total_time_shift: String(r[16] || ""),
+                status_code: String(r[17] || "B0").trim().toUpperCase(),
+                position_bd: String(r[18] || ""),
+                problem: String(r[19] || ""),
+                component: String(r[20] || ""),
+                tindakan: String(r[21] || ""),
+                job_status: String(r[22] || "OPEN").trim().toUpperCase(),
+                mp1: String(r[23] || ""), mp2: String(r[24] || ""), mp3: String(r[25] || ""), mp4: String(r[26] || ""), mp5: String(r[27] || ""),
+                mp6: String(r[28] || ""), mp7: String(r[29] || ""), mp8: String(r[30] || ""), mp9: String(r[31] || ""), mp10: String(r[32] || ""),
+                comp_grup: String(r[33] || ""), comp_sub: String(r[34] || "")
+              });
+            }
+            dmbdDataset = parsed;
+          }
+          refreshAllViews();
+          alert(`File DMBD Sukses Diupload! (${dmbdDataset.length} Baris)`);
+        } catch (err) { alert("Gagal membaca file DMBD: " + err.message); }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // UPLOAD EXCEL HM UPDATE
+    function handleHmUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const wb = XLSX.read(data, { type: 'array', cellDates: true });
+          const sheetName = wb.SheetNames.find(s => s.trim().toUpperCase() === 'HM UPDATE') || wb.SheetNames[0];
+          const rawHm = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" });
+
+          let noUnitCol = -1, startCol = -1, endCol = -1, whCol = -1, modelCol = -1, lokCol = -1, hIdx = -1;
+          for (let i = 0; i < Math.min(rawHm.length, 10); i++) {
+            const rowStrs = rawHm[i].map(c => String(c).trim().toUpperCase());
+            if (rowStrs.includes("NO UNIT") || rowStrs.includes("CODE UNIT")) {
+              hIdx = i;
+              noUnitCol = rowStrs.indexOf("NO UNIT") !== -1 ? rowStrs.indexOf("NO UNIT") : rowStrs.indexOf("CODE UNIT");
+              startCol = rowStrs.findIndex(c => c.includes("HM START") || c === "START");
+              endCol = rowStrs.findIndex(c => c.includes("HM END") || c === "END");
+              whCol = rowStrs.lastIndexOf("WH"); 
+              if (whCol === -1) whCol = rowStrs.findIndex(c => c.includes("WORKING HOUR"));
+              modelCol = rowStrs.indexOf("MODEL");
+              lokCol = rowStrs.findIndex(c => c === "LOKASI" || c.includes("JOB"));
+              break;
+            }
+          }
+
+          if (hIdx !== -1 && noUnitCol !== -1) {
+            hmUpdateData = {};
+            for (let i = hIdx + 1; i < rawHm.length; i++) {
+              const r = rawHm[i];
+              const unit = String(r[noUnitCol] || "").trim().toUpperCase();
+              if (!unit || unit === '-' || unit === 'NO UNIT') continue;
+              
+              const shiftStartIdx = lokCol !== -1 ? lokCol + 1 : noUnitCol + 2;
+              const shiftsData = [];
+              let currCol = shiftStartIdx;
+              
+              for (let day = 1; day <= 31; day++) {
+                  let s1 = r[currCol] !== undefined && r[currCol] !== "" ? r[currCol] : "";
+                  let s2 = r[currCol + 1] !== undefined && r[currCol + 1] !== "" ? r[currCol + 1] : "";
+                  shiftsData.push(s1); shiftsData.push(s2); currCol += 3; 
+              }
+              
+              hmUpdateData[unit] = {
+                model: modelCol !== -1 ? String(r[modelCol]||"") : "-",
+                lokasi: lokCol !== -1 ? String(r[lokCol]||"") : "-",
+                hmStart: startCol !== -1 ? (parseFloat(r[startCol]) || 0) : 0,
+                hmEnd: endCol !== -1 ? (parseFloat(r[endCol]) || 0) : 0,
+                wh: whCol !== -1 ? (parseFloat(r[whCol]) || 0) : 0,
+                shifts: shiftsData
+              };
+            }
+          }
+          refreshAllViews();
+          alert(`File HM Update Sukses Diupload! (${Object.keys(hmUpdateData).length} Unit Disinkronisasi)`);
+        } catch (err) { alert("Gagal membaca file HM Update: " + err.message); }
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    // NAVIGASI TAB
+    function switchTab(tabId) {
+      ['viewKpi', 'viewPareto', 'viewDmbd', 'viewDatabase', 'viewHmUpdate', 'viewSettings'].forEach(id => { const el = document.getElementById(id); if(el) el.classList.add('hidden'); });
+      ['navKpi', 'navPareto', 'navDmbd', 'navDatabase', 'navHmUpdate', 'navSettings'].forEach(id => { 
+        const btn = document.getElementById(id); 
+        if(btn) { 
+          if (id === 'navHmUpdate') btn.className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 text-amber-400 hover:text-amber-300 hover:bg-slate-800 font-bold border border-amber-500/30"; 
+          else if (id === 'navSettings') btn.className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 text-rose-400 hover:text-rose-300 hover:bg-slate-800 font-bold border border-rose-500/30";
+          else btn.className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 text-slate-300 hover:text-white hover:bg-slate-800"; 
+        } 
+      });
+      
+      if (tabId === 'kpi') { document.getElementById('viewKpi').classList.remove('hidden'); document.getElementById('navKpi').className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 bg-[#00e5ff] text-slate-950 font-bold shadow"; renderKPICharts(); }
+      else if (tabId === 'pareto') { document.getElementById('viewPareto').classList.remove('hidden'); document.getElementById('navPareto').className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 bg-[#00e5ff] text-slate-950 font-bold shadow"; setTimeout(renderParetoAndPica, 50); }
+      else if (tabId === 'dmbd') { document.getElementById('viewDmbd').classList.remove('hidden'); document.getElementById('navDmbd').className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 bg-blue-600 text-white font-bold shadow"; applyFilterDmbd(); }
+      else if (tabId === 'database') { document.getElementById('viewDatabase').classList.remove('hidden'); document.getElementById('navDatabase').className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 bg-cyan-600 text-white font-bold shadow"; }
+      else if (tabId === 'hmupdate') { document.getElementById('viewHmUpdate').classList.remove('hidden'); document.getElementById('navHmUpdate').className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 bg-amber-500 text-slate-950 font-bold shadow border border-amber-500"; }
+      else if (tabId === 'settings') { document.getElementById('viewSettings').classList.remove('hidden'); document.getElementById('navSettings').className = "px-3.5 py-2 rounded-lg transition flex items-center gap-2 bg-rose-600 text-white font-bold shadow border border-rose-600"; renderUserTable(); }
+    }
+
+    function updateMohhFromDays() {
+      const days = parseFloat(document.getElementById('kpiDays').value) || 0;
+      document.getElementById('kpiMohh').value = days * 24;
+      refreshAllViews();
+    }
+
+    function refreshAllViews() {
+      buildDatabaseRecords();
+      calculateKPIFromDatabase();
+      renderDatabaseTable();
+      renderHmUpdateTable();
+      applyFilterDmbd();
+      if (!document.getElementById('viewKpi').classList.contains('hidden')) renderKPICharts();
+      if (!document.getElementById('viewPareto').classList.contains('hidden')) renderParetoAndPica();
+    }
+
+    // LOGIKA DATABASE
+    function buildDatabaseRecords() {
+      const mohh = parseFloat(document.getElementById('kpiMohh').value) || 696;
+      const planPaVal = (parseFloat(document.getElementById('kpiPlanPa').value) || 85.74) / 100;
+
+      let unitSet = new Set();
+      dmbdDataset.forEach(r => { if (r.unit_code && r.unit_code !== '-') unitSet.add(r.unit_code); });
+      generateFullDtList().forEach(u => unitSet.add(u));
+      for (let i = 1; i <= 9; i++) unitSet.add("EX-" + String(i).padStart(3, '0'));
+      SUPPORT_UNITS_LIST.forEach(u => unitSet.add(u));
+
+      allGlobalUnits = Array.from(unitSet);
+      allGlobalUnits.sort((a, b) => {
+        const numA = parseInt(a.replace(/\D/g, '')) || 0; const numB = parseInt(b.replace(/\D/g, '')) || 0;
+        return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+      });
+
+      const dmbdAgg = {};
+      dmbdDataset.forEach(r => {
+        const u = r.unit_code; if (!u) return;
+        if (!dmbdAgg[u]) dmbdAgg[u] = { freq: 0, BS: 0, B0: 0, B1: 0, B2: 0, B3: 0, B4: 0, B5: 0, B6: 0, B7: 0, BUS: 0 };
+        const dt = parseFloat(r.total_time) || 0;
+        let sc = (r.status_code || 'B0').toUpperCase().trim();
+        if (!STATUS_CODE_LIST.includes(sc)) sc = 'B0';
+        dmbdAgg[u].freq += 1; dmbdAgg[u][sc] = (dmbdAgg[u][sc] || 0) + dt;
+      });
+
+      databaseSheetRows = allGlobalUnits.map((unitCode, idx) => {
+        const agg = dmbdAgg[unitCode] || { freq: 0, BS: 0, B0: 0, B1: 0, B2: 0, B3: 0, B4: 0, B5: 0, B6: 0, B7: 0, BUS: 0 };
+        let manufactur = 'DONGFENG'; let model = 'K51Y';
+        if (unitCode.startsWith('EX-')) { manufactur = 'LIUGONG'; model = '938E HD'; }
+        else if (unitCode.startsWith('MG-')) { manufactur = 'LIUGONG'; model = 'CLG4230D'; }
+        else if (unitCode.startsWith('CP-')) { manufactur = 'LIUGONG'; model = '6611E'; }
+        else if (unitCode.startsWith('DZ-')) { manufactur = 'LIUGONG'; model = 'CLGB230'; }
+
+        let bs = agg.BS || 0, b0 = agg.B0 || 0, b1 = agg.B1 || 0, b2 = agg.B2 || 0, b3 = agg.B3 || 0;
+        let b4 = agg.B4 || 0, b5 = agg.B5 || 0, b6 = agg.B6 || 0, b7 = agg.B7 || 0, bus = agg.BUS || 0;
+        let totalBd = bs + b0 + b1 + b2 + b3 + b4 + b5 + b6 + b7 + bus;
+        let bdFreq = agg.freq;
+
+        let hmStart = 0; let hmEnd = 0; let wh = 0;
+        if (hmUpdateData[unitCode] && hmUpdateData[unitCode].wh !== undefined) {
+          hmStart = hmUpdateData[unitCode].hmStart;
+          hmEnd = hmUpdateData[unitCode].hmEnd;
+          wh = hmUpdateData[unitCode].wh;
+        } else {
+          hmStart = 3000 + (idx * 17) % 500; wh = 300 + (idx * 17) % 180; hmEnd = hmStart + wh;
+          if (unitCode === 'EX-001') { wh = 259.2; hmStart = 1200; hmEnd = 1459.2; bs=10.3; totalBd=10.3; bdFreq=1; }
+        }
+
+        let stb = mohh - (wh + totalBd); if (stb < 0) stb = 0;
+        let actualPa = ((mohh - totalBd) / mohh); if (actualPa < 0) actualPa = 0;
+        let actualMa = (wh + totalBd) > 0 ? (wh / (wh + totalBd)) : 0;
+        let mtbf = bdFreq > 0 ? (wh / bdFreq) : wh; let mttr = bdFreq > 0 ? (totalBd / bdFreq) : 0;
+        let acvPa = planPaVal > 0 ? (actualPa / planPaVal) : 1;
+
+        return { no: idx + 1, unit: unitCode, manufactur: manufactur, model: model, hmStart: hmStart, hmEnd: hmEnd, wh: wh, stb: stb, bs: bs, b0: b0, b1: b1, b2: b2, b3: b3, b4: b4, b5: b5, b6: b6, b7: b7, bus: bus, totalBd: totalBd, bdFreq: bdFreq, mtbf: mtbf, mttr: mttr, planPa: planPaVal, actualPa: actualPa, actualMa: actualMa, acvPa: acvPa };
+      });
+    }
+
+    function calculateKPIFromDatabase() {
+      const fleet = document.getElementById('fleetFilter') ? document.getElementById('fleetFilter').value : 'EXCA';
+      let selectedRows = [];
+
+      if (fleet === 'EXCA') {
+        const exList = ['EX-001', 'EX-002', 'EX-003', 'EX-004', 'EX-005', 'EX-006', 'EX-007', 'EX-008', 'EX-009'];
+        selectedRows = databaseSheetRows.filter(r => exList.includes(r.unit));
+      } else if (fleet === 'SUPPORT') {
+        selectedRows = databaseSheetRows.filter(r => SUPPORT_UNITS_LIST.includes(r.unit));
+      } else if (fleet === 'RENTAL') {
+        selectedRows = databaseSheetRows.filter(r => RENTAL_UNITS_LIST.includes(r.unit));
+      } else if (fleet === 'HAULER') {
+        selectedRows = databaseSheetRows.filter(r => r.unit.startsWith('DT-') && !RENTAL_UNITS_LIST.includes(r.unit));
+      } else {
+        selectedRows = databaseSheetRows;
+      }
+
+      if (selectedRows.length === 0) selectedRows = databaseSheetRows.slice(0, 9);
+
+      currentKpiData.units = selectedRows.map(r => r.unit);
+      currentKpiData.planPA = selectedRows.map(r => r.planPa * 100);
+      currentKpiData.actualPA = selectedRows.map(r => r.actualPa * 100);
+      currentKpiData.actualMA = selectedRows.map(r => r.actualMa * 100);
+      currentKpiData.acvPA = selectedRows.map(r => r.acvPa * 100);
+      currentKpiData.mtbf = selectedRows.map(r => r.mtbf);
+      currentKpiData.mttr = selectedRows.map(r => r.mttr);
+      currentKpiData.targetMtbf = selectedRows.map(() => 50.0);
+      currentKpiData.targetMttr = selectedRows.map(() => 12.0);
+
+      const count = selectedRows.length || 1;
+      currentKpiData.totalSummary = {
+        planPA: currentKpiData.planPA.reduce((a, b) => a + b, 0) / count,
+        actualPA: currentKpiData.actualPA.reduce((a, b) => a + b, 0) / count,
+        actualMA: currentKpiData.actualMA.reduce((a, b) => a + b, 0) / count,
+        acvPA: currentKpiData.acvPA.reduce((a, b) => a + b, 0) / count
+      };
+
+      currentKpiData.totalMtbf = currentKpiData.mtbf.reduce((a, b) => a + b, 0) / count;
+      currentKpiData.totalMttr = currentKpiData.mttr.reduce((a, b) => a + b, 0) / count;
+      currentKpiData.baHours = {};
+      STATUS_CODE_LIST.forEach(code => { currentKpiData.baHours[code] = selectedRows.map(r => r[code.toLowerCase()] || 0); });
+
+      const scTotal = {};
+      STATUS_CODE_LIST.forEach(code => { scTotal[code] = selectedRows.reduce((sum, r) => sum + (r[code.toLowerCase()] || 0), 0); });
+      const grandSum = Object.values(scTotal).reduce((a, b) => a + b, 0) || 1;
+      currentKpiData.statusCodePie = { labels: STATUS_CODE_LIST.filter(c => scTotal[c] > 0), values: STATUS_CODE_LIST.filter(c => scTotal[c] > 0).map(c => (scTotal[c] / grandSum) * 100) };
+    }
+
+    // RENDER KPI CHARTS
+    function renderKPICharts() {
+      try {
+        const unitCount = currentKpiData.units.length;
+        const mainContainer = document.getElementById('mainChartContainer');
+        const mtbfContainer = document.getElementById('mtbfChartContainer');
+        const minCanvasWidth = unitCount > 12 ? `${unitCount * 54}px` : '100%';
+        if (mainContainer) mainContainer.style.width = minCanvasWidth;
+        if (mtbfContainer) mtbfContainer.style.width = minCanvasWidth;
+
+        const theadRow = document.getElementById('matrixHeaderRow');
+        if (theadRow) {
+          theadRow.innerHTML = `<th class="w-32 bg-slate-900 text-left pl-3 sticky-col-1 z-30">Monthly</th>`;
+          currentKpiData.units.forEach(u => { theadRow.innerHTML += `<th>${u}</th>`; });
+          theadRow.innerHTML += `<th class="bg-blue-950 text-[#00e5ff] font-bold">TOTAL</th>`;
+        }
+        const tbody = document.getElementById('matrixBody');
+        if (tbody) {
+          const rows = [{ label: 'Plan PA', data: currentKpiData.planPA, tot: currentKpiData.totalSummary.planPA }, { label: 'Actual PA', data: currentKpiData.actualPA, tot: currentKpiData.totalSummary.actualPA }, { label: 'Actual MA', data: currentKpiData.actualMA, tot: currentKpiData.totalSummary.actualMA }, { label: 'Acv PA', data: currentKpiData.acvPA, tot: currentKpiData.totalSummary.acvPA }];
+          tbody.innerHTML = rows.map(r => `<tr><td class="font-bold text-left pl-3 text-slate-300 bg-slate-950 sticky-col-1 z-20">${r.label}</td>${r.data.map(val => `<td>${(Number(val)||0).toFixed(1).replace('.', ',')}%</td>`).join('')}<td class="font-bold text-[#00e5ff] bg-blue-950/60">${(Number(r.tot)||0).toFixed(1).replace('.', ',')}%</td></tr>`).join('');
+        }
+
+        const baHeader = document.getElementById('baHeaderRow');
+        if (baHeader) {
+          baHeader.innerHTML = `<th class="w-28 bg-slate-900 text-left pl-3 sticky-col-1 z-30">TYPE</th>`;
+          currentKpiData.units.forEach(u => { baHeader.innerHTML += `<th>${u}</th>`; });
+          baHeader.innerHTML += `<th class="bg-blue-950 text-[#00e5ff] font-bold">TOTAL</th>`;
+        }
+        const unitTotalHours = currentKpiData.units.map((u, i) => {
+          let sum = 0; STATUS_CODE_LIST.forEach(code => { sum += (Number((currentKpiData.baHours[code]||[])[i]) || 0); }); return sum;
+        });
+        const grandTotalHours = unitTotalHours.reduce((a, b) => a + b, 0);
+
+        const baHoursTbody = document.getElementById('baHoursBody');
+        if (baHoursTbody) {
+          let baHoursHtml = '';
+          STATUS_CODE_LIST.forEach(code => {
+            const rowData = currentKpiData.baHours[code] || new Array(unitCount).fill(0);
+            const rowTotal = rowData.reduce((a, b) => a + (Number(b) || 0), 0);
+            baHoursHtml += `<tr><td class="font-bold text-left pl-3 text-slate-300 bg-slate-950 sticky-col-1 z-20">${code}</td>${currentKpiData.units.map((u, i) => `<td>${(Number(rowData[i])||0) > 0 ? Number(rowData[i]).toFixed(1).replace('.', ',') : '0,0'}</td>`).join('')}<td class="font-bold text-[#00e5ff] bg-blue-950/40">${rowTotal.toFixed(1).replace('.', ',')}</td></tr>`;
+          });
+          baHoursHtml += `<tr class="font-bold bg-slate-900 text-amber-300"><td class="text-left pl-3 sticky-col-1 bg-slate-950 text-amber-300">TOTAL</td>${unitTotalHours.map(v => `<td>${(Number(v)||0).toFixed(1).replace('.', ',')}</td>`).join('')}<td class="text-[#00e5ff] bg-blue-950">${grandTotalHours.toFixed(1).replace('.', ',')}</td></tr>`;
+          baHoursTbody.innerHTML = baHoursHtml;
+        }
+
+        const baPercentTbody = document.getElementById('baPercentBody');
+        if (baPercentTbody) {
+          let baPercentHtml = '';
+          STATUS_CODE_LIST.forEach(code => {
+            const rowData = currentKpiData.baHours[code] || new Array(unitCount).fill(0);
+            const rowTotal = rowData.reduce((a, b) => a + (Number(b) || 0), 0);
+            const totalPct = grandTotalHours > 0 ? (rowTotal / grandTotalHours) * 100 : 0;
+            baPercentHtml += `<tr><td class="font-bold text-left pl-3 text-slate-400 bg-slate-950 sticky-col-1 z-20">${code}</td>${currentKpiData.units.map((u, i) => { const uTotal = unitTotalHours[i] || 0; const v = Number(rowData[i]) || 0; const pct = uTotal > 0 ? (v / uTotal) * 100 : 0; return `<td>${pct.toFixed(1).replace('.', ',')}%</td>`; }).join('')}<td class="font-bold text-[#00e5ff] bg-blue-950/40">${totalPct.toFixed(1).replace('.', ',')}%</td></tr>`;
+          });
+          baPercentHtml += `<tr class="font-bold bg-slate-900 text-amber-300"><td class="text-left pl-3 sticky-col-1 bg-slate-950 text-amber-300">TOTAL</td>${unitTotalHours.map(v => `<td>${(Number(v)||0) > 0 ? '100,0%' : '0,0%'}</td>`).join('')}<td class="text-[#00e5ff] bg-blue-950">${grandTotalHours > 0 ? '100,0%' : '0,0%'}</td></tr>`;
+          baPercentTbody.innerHTML = baPercentHtml;
+        }
+
+        const mtbfHeader = document.getElementById('mtbfHeaderRow');
+        if (mtbfHeader) {
+          mtbfHeader.innerHTML = `<th class="w-32 bg-slate-900 text-left pl-3 sticky-col-1 z-30">METRIC</th>`;
+          currentKpiData.units.forEach(u => { mtbfHeader.innerHTML += `<th>${u}</th>`; });
+          mtbfHeader.innerHTML += `<th class="bg-blue-950 text-[#00e5ff] font-bold">TOTAL</th>`;
+        }
+        const mtbfTbody = document.getElementById('mtbfBody');
+        if (mtbfTbody) {
+          const mtbfRows = [
+            { label: 'MTBF', data: currentKpiData.mtbf, tot: currentKpiData.totalMtbf },
+            { label: 'MTTR', data: currentKpiData.mttr, tot: currentKpiData.totalMttr },
+            { label: 'Target MTBF', data: currentKpiData.targetMtbf, tot: 50.0 },
+            { label: 'Target MTTR', data: currentKpiData.targetMttr, tot: 12.0 }
+          ];
+          mtbfTbody.innerHTML = mtbfRows.map(r => `<tr><td class="font-bold text-left pl-3 text-slate-300 bg-slate-950 sticky-col-1 z-20">${r.label}</td>${r.data.map(val => `<td>${(Number(val)||0).toFixed(1).replace('.', ',')}</td>`).join('')}<td class="font-bold text-[#00e5ff] bg-blue-950/60">${(Number(r.tot)||0).toFixed(1).replace('.', ',')}</td></tr>`).join('');
+        }
+
+        // CHARTS JS
+        try {
+          const canvasMain = document.getElementById('mainComboChart');
+          if (canvasMain && typeof Chart !== 'undefined') {
+            const ctxMain = canvasMain.getContext('2d');
+            if (mainChartInstance) mainChartInstance.destroy();
+            mainChartInstance = new Chart(ctxMain, {
+              data: {
+                labels: currentKpiData.units,
+                datasets: [
+                  { type: 'bar', label: 'Plan PA', data: currentKpiData.planPA.map(v => (Number(v)||0)/100), backgroundColor: '#22d3ee', barPercentage: unitCount > 20 ? 0.6 : 0.35, datalabels: { display: true, anchor: 'end', align: 'top', color: '#ffffff', font: { size: 8, weight: 'bold' }, formatter: (v) => (v*100).toFixed(1).replace('.', ',') + '%' } },
+                  { type: 'bar', label: 'Actual PA', data: currentKpiData.actualPA.map(v => (Number(v)||0)/100), backgroundColor: '#f97316', barPercentage: unitCount > 20 ? 0.6 : 0.35, datalabels: { display: true, anchor: 'end', align: 'top', color: '#ffffff', font: { size: 8, weight: 'bold' }, formatter: (v) => (v*100).toFixed(1).replace('.', ',') + '%' } },
+                  { type: 'line', label: 'Actual MA', data: currentKpiData.actualMA.map(v => (Number(v)||0)/100), borderColor: '#22c55e', backgroundColor: '#22c55e', borderWidth: 2, pointRadius: unitCount > 20 ? 2 : 3, tension: 0.15, datalabels: { display: true, anchor: 'center', align: 'top', color: '#22c55e', font: { size: 8, weight: 'bold' }, formatter: (v) => (v*100).toFixed(1).replace('.', ',') + '%' } },
+                  { type: 'line', label: 'Acv PA', data: currentKpiData.acvPA.map(v => (Number(v)||0)/100), borderColor: '#38bdf8', backgroundColor: '#38bdf8', borderWidth: 2, pointRadius: unitCount > 20 ? 2 : 3, tension: 0.15, datalabels: { display: true, anchor: 'end', align: 'bottom', color: '#38bdf8', font: { size: 8, weight: 'bold' }, formatter: (v) => (v*100).toFixed(1).replace('.', ',') + '%' } }
+                ]
+              },
+              options: { responsive: true, maintainAspectRatio: false, layout: { padding: { top: 22 } }, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff', boxWidth: 12, font: { size: 10 } } } }, scales: { x: { grid: { color: '#262626' }, ticks: { color: '#ffffff', font: { size: unitCount > 20 ? 8 : 10, weight: 'bold' }, maxRotation: unitCount > 12 ? 45 : 0 } }, y: { min: 0, max: 1.2, grid: { color: '#262626' }, ticks: { color: '#ffffff' } }, y1: { min: 0, max: 1.4, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#ffffff' } } } }
+            });
+          }
+        } catch (e) {}
+
+        try {
+          const canvasPie = document.getElementById('pieStatusCodeChart');
+          if (canvasPie && typeof Chart !== 'undefined') {
+            const ctxPie = canvasPie.getContext('2d');
+            if (pieChartInstance) pieChartInstance.destroy();
+            
+            const pieLabels = currentKpiData.statusCodePie.labels;
+            const pieData = currentKpiData.statusCodePie.values;
+            const pieColors = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#64748b'];
+
+            pieChartInstance = new Chart(ctxPie, {
+              type: 'pie',
+              data: { labels: pieLabels, datasets: [{ data: pieData, backgroundColor: pieColors.slice(0, pieLabels.length) }] },
+              options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, datalabels: { color: '#ffffff', font: { size: 9, weight: 'bold' }, formatter: (val) => Number(val) > 2 ? Number(val).toFixed(1).replace('.', ',') + '%' : '' } } }
+            });
+
+            const legendBadge = document.getElementById('pieLegendBadge');
+            if (legendBadge) {
+              const descMap = { 
+                'BS': 'BD Schedule (Service, Greashing, Overhoul)', 
+                'B0': 'BD Unschedule (On Progres)', 
+                'B1': 'BD Unschedule (Waiting Part)', 
+                'B2': 'BD Unschedule (Waiting Man Power)', 
+                'B3': 'BD Unschedule (Waranty Dealer)', 
+                'B4': 'BD Unschedule (Accident, Miss Op)', 
+                'B5': 'BD Unschedule (Breakdwon Tire)', 
+                'B6': 'BD Unschedule IT (Radio, CCTV, Antena)', 
+                'B7': 'BD Unschedule (Waiting OSR)',
+                'BUS': 'Unscheduled'
+              };
+              legendBadge.innerHTML = pieLabels.map((lbl, idx) => {
+                const bg = pieColors[idx % pieColors.length];
+                const text = descMap[lbl] || 'Lainnya';
+                return `<span class="inline-flex items-center gap-1 bg-slate-900 border border-slate-700 px-1.5 py-0.5 rounded shadow-sm"><span class="w-2.5 h-2.5 rounded-sm" style="background-color: ${bg}"></span><b class="text-white">${lbl}</b> <span class="text-slate-400 ml-0.5">- ${text}</span></span>`;
+              }).join('');
+            }
+          }
+        } catch (e) {}
+
+        try {
+          const canvasMtbf = document.getElementById('mtbfMttrChart');
+          if (canvasMtbf && typeof Chart !== 'undefined') {
+            const ctxMtbf = canvasMtbf.getContext('2d');
+            if (mtbfChartInstance) mtbfChartInstance.destroy();
+            mtbfChartInstance = new Chart(ctxMtbf, {
+              type: 'bar',
+              data: {
+                labels: currentKpiData.units,
+                datasets: [
+                  { label: 'Target MTBF', data: currentKpiData.targetMtbf, backgroundColor: '#ea580c', barPercentage: unitCount > 20 ? 0.6 : 0.35, datalabels: { display: true, anchor: 'end', align: 'top', color: '#ea580c', font: { size: 7.5 }, formatter: (v) => Number(v||0).toFixed(0) } },
+                  { label: 'Target MTTR', data: currentKpiData.targetMttr, backgroundColor: '#6b7280', barPercentage: unitCount > 20 ? 0.6 : 0.35, datalabels: { display: true, anchor: 'end', align: 'top', color: '#cbd5e1', font: { size: 7.5 }, formatter: (v) => Number(v||0).toFixed(0) } },
+                  { label: 'MTBF', data: currentKpiData.mtbf, backgroundColor: '#3b82f6', barPercentage: unitCount > 20 ? 0.6 : 0.35, datalabels: { display: true, anchor: 'end', align: 'top', color: '#60a5fa', font: { size: 7.5, weight: 'bold' }, formatter: (v) => Number(v||0).toFixed(1) } },
+                  { label: 'MTTR', data: currentKpiData.mttr, backgroundColor: '#eab308', barPercentage: unitCount > 20 ? 0.6 : 0.35, datalabels: { display: true, anchor: 'end', align: 'top', color: '#facc15', font: { size: 7.5, weight: 'bold' }, formatter: (v) => Number(v||0).toFixed(1) } }
+                ]
+              },
+              options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff', boxWidth: 10, font: { size: 9 } } } }, scales: { x: { grid: { color: '#262626' }, ticks: { color: '#ffffff', font: { size: unitCount > 20 ? 8 : 9, weight: 'bold' }, maxRotation: unitCount > 12 ? 45 : 0 } }, y: { beginAtZero: true, grid: { color: '#262626' }, ticks: { color: '#ffffff' } } } }
+            });
+          }
+        } catch (e) {}
+
+      } catch (err) { console.error("Error renderKPICharts:", err); }
+    }
+
+    // PARETO & PICA CALLER
+    function renderParetoAndPica() {
+        renderParetoChart();
+        renderProblemIdentification();
+    }
+
+    function setParetoMetric(metric) {
+      currentParetoMetric = metric;
+      const bDt = document.getElementById('btnParetoDt');
+      const bFreq = document.getElementById('btnParetoFreq');
+      if (metric === 'downtime') {
+        if (bDt) bDt.className = "px-2 py-1 rounded text-xs font-bold bg-cyan-600 text-white shadow-sm";
+        if (bFreq) bFreq.className = "px-2 py-1 rounded text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700";
+      } else {
+        if (bFreq) bFreq.className = "px-2 py-1 rounded text-xs font-bold bg-cyan-600 text-white shadow-sm";
+        if (bDt) bDt.className = "px-2 py-1 rounded text-xs font-bold bg-slate-800 text-slate-300 border border-slate-700";
+      }
+      renderParetoChart();
+    }
+
+    function renderParetoChart() {
+      try {
+        const fleet = document.getElementById('paretoFleetFilter') ? document.getElementById('paretoFleetFilter').value : 'ALL';
+        const compMap = {};
+        
+        dmbdDataset.forEach(r => {
+          const u = (r.unit_code || '').toUpperCase();
+          if (!u || u === '-') return;
+
+          if (fleet === 'EXCA' && !u.startsWith('EX-')) return;
+          if (fleet === 'HAULER' && (!u.startsWith('DT-') || RENTAL_UNITS_LIST.includes(u))) return;
+          if (fleet === 'RENTAL' && !RENTAL_UNITS_LIST.includes(u)) return;
+          if (fleet === 'SUPPORT' && !SUPPORT_UNITS_LIST.includes(u)) return;
+
+          const c = r.component || 'OTHERS';
+          const dt = parseFloat(r.total_time) || 0;
+          if (!compMap[c]) compMap[c] = { comp: c, dt: 0, count: 0 };
+          compMap[c].dt += dt; compMap[c].count += 1;
+        });
+
+        let compList = Object.values(compMap);
+        if (compList.length === 0) compList = [{ comp: 'ENGINE', dt: 0, count: 0 }];
+
+        if (currentParetoMetric === 'downtime') compList.sort((a, b) => b.dt - a.dt);
+        else compList.sort((a, b) => b.count - a.count);
+
+        const totalVal = compList.reduce((sum, item) => sum + (currentParetoMetric === 'downtime' ? item.dt : item.count), 0);
+        let cumulativeSum = 0;
+        const labels = []; const barData = []; const cumPercentages = []; const cutoff80 = [];
+
+        compList.forEach(item => {
+          const val = currentParetoMetric === 'downtime' ? item.dt : item.count;
+          cumulativeSum += val;
+          const cumPct = totalVal > 0 ? (cumulativeSum / totalVal) * 100 : 0;
+          item.val = val; item.cumPct = cumPct;
+          labels.push(item.comp); barData.push(val.toFixed(1));
+          cumPercentages.push(cumPct.toFixed(1)); cutoff80.push(80);
+        });
+
+        const canvasPareto = document.getElementById('paretoChart');
+        if (canvasPareto && typeof Chart !== 'undefined') {
+          const ctxPareto = canvasPareto.getContext('2d');
+          if (paretoChartInstance) paretoChartInstance.destroy();
+          paretoChartInstance = new Chart(ctxPareto, {
+            data: {
+              labels: labels,
+              datasets: [
+                { type: 'bar', label: currentParetoMetric === 'downtime' ? 'Downtime (Jam)' : 'Frekuensi', data: barData, backgroundColor: '#f97316', yAxisID: 'yLeft', barPercentage: 0.5, datalabels: { anchor: 'end', align: 'top', color: '#ffffff', font: { size: 8.5, weight: 'bold' }, formatter: (val) => Number(val).toFixed(0) } },
+                { type: 'line', label: 'Kumulatif %', data: cumPercentages, borderColor: '#00e5ff', backgroundColor: '#00e5ff', borderWidth: 2, pointRadius: 3, yAxisID: 'yRight', tension: 0.2, datalabels: { anchor: 'center', align: 'top', color: '#00e5ff', font: { size: 8, weight: 'bold' }, formatter: (val) => Number(val).toFixed(0) + '%' } },
+                { type: 'line', label: 'Batas 80%', data: cutoff80, borderColor: '#ef4444', borderWidth: 1.5, borderDash: [5, 5], pointRadius: 0, yAxisID: 'yRight', datalabels: { display: false } }
+              ]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false, layout: { padding: { top: 20 } }, plugins: { legend: { position: 'bottom', labels: { color: '#ffffff', boxWidth: 12, font: { size: 10 } } } }, scales: { x: { grid: { color: '#1e293b' }, ticks: { color: '#ffffff', font: { size: 9, weight: 'bold' }, maxRotation: 30 } }, yLeft: { beginAtZero: true, position: 'left', grid: { color: '#1e293b' }, ticks: { color: '#ffffff' } }, yRight: { min: 0, max: 100, position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#00e5ff', callback: (v) => v + '%' } } }
+            }
+          });
+        }
+
+        const summaryBody = document.getElementById('paretoSummaryBody');
+        if (summaryBody) {
+          summaryBody.innerHTML = compList.map((item, idx) => {
+            const isVital80 = item.cumPct <= 80 || (idx > 0 && compList[idx-1].cumPct < 80);
+            return `<tr class="hover:bg-slate-900 ${isVital80 ? 'bg-amber-950/20 text-amber-200' : 'text-slate-400'}">
+              <td class="py-1.5 px-2 text-center border-b border-slate-800">${idx + 1}</td>
+              <td class="py-1.5 px-2 truncate max-w-[120px] border-b border-slate-800" title="${item.comp}">${item.comp}</td>
+              <td class="py-1.5 px-2 text-right font-mono text-orange-400 font-bold border-b border-slate-800">${item.dt.toFixed(1)} h</td>
+              <td class="py-1.5 px-2 text-right font-mono text-cyan-400 font-bold border-b border-slate-800">${item.count}x</td>
+              <td class="py-1.5 px-2 text-right font-mono font-bold border-b border-slate-800">${item.cumPct.toFixed(1)}%</td>
+            </tr>`;
+          }).join('');
+        }
+      } catch (err) {}
+    }
+
+    function renderProblemIdentification() {
+      const fleet = document.getElementById('paretoFleetFilter') ? document.getElementById('paretoFleetFilter').value : 'ALL';
+      
+      let openWOs = dmbdDataset.filter(r => r.job_status === 'OPEN');
+      
+      openWOs = openWOs.filter(r => {
+         const u = (r.unit_code || '').toUpperCase();
+         if (fleet === 'EXCA' && !u.startsWith('EX-')) return false;
+         if (fleet === 'HAULER' && (!u.startsWith('DT-') || RENTAL_UNITS_LIST.includes(u))) return false;
+         if (fleet === 'RENTAL' && !RENTAL_UNITS_LIST.includes(u)) return false;
+         if (fleet === 'SUPPORT' && !SUPPORT_UNITS_LIST.includes(u)) return false;
+         return true;
+      });
+
+      const mapLatestWO = {};
+      openWOs.forEach(r => {
+        const key = r.wo + "_" + r.unit_code;
+        if (!mapLatestWO[key]) {
+          mapLatestWO[key] = r;
+        } else {
+          if (r.tanggal >= mapLatestWO[key].tanggal) {
+            mapLatestWO[key] = r;
+          }
+        }
+      });
+      
+      let finalOpenWOs = Object.values(mapLatestWO);
+      finalOpenWOs.sort((a, b) => (parseFloat(b.total_time) || 0) - (parseFloat(a.total_time) || 0));
+
+      const tbody = document.getElementById('openBdBody');
+      const countEl = document.getElementById('openBdCount');
+      if (!tbody) return;
+
+      if (finalOpenWOs.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="p-8 text-center text-emerald-500 font-sans italic text-xs font-bold border-b border-slate-800"><i class="fa-solid fa-check-circle mr-1"></i> Tidak ada unit yang sedang Breakdown (Status OPEN) pada Fleet ini. Semua unit Ready/Closed!</td></tr>`;
+        if (countEl) countEl.innerText = '0';
+        return;
+      }
+
+      tbody.innerHTML = finalOpenWOs.map((r, i) => `
+        <tr class="hover:bg-slate-800/80 transition bg-slate-900 text-slate-200">
+          <td class="p-2.5 border-r border-slate-800 text-cyan-400 font-bold">${r.wo}</td>
+          <td class="p-2.5 border-r border-slate-800 text-slate-400 text-center">${r.tanggal}</td>
+          <td class="p-2.5 border-r border-slate-800 font-bold text-rose-400">${r.unit_code}</td>
+          <td class="p-2.5 border-r border-slate-800 text-amber-400 font-bold text-center">${r.status_code}</td>
+          <td class="p-2.5 border-r border-slate-800 text-amber-200 truncate max-w-[150px]" title="${r.component}">${r.component}</td>
+          <td class="p-2.5 border-r border-slate-800 text-slate-300 truncate max-w-[200px]" title="${r.problem}">${r.problem}</td>
+          <td class="p-2.5 border-r border-slate-800 text-center font-bold text-orange-400">${r.total_time !== '-' ? r.total_time + ' h' : '-'}</td>
+          <td class="p-2.5 border-r border-slate-800 text-slate-400 truncate max-w-[200px]" title="${r.tindakan}">${r.tindakan || '-'}</td>
+          <td class="p-2.5 text-center"><span class="px-2 py-0.5 rounded font-bold bg-rose-950 text-rose-500 border border-rose-800">OPEN</span></td>
+        </tr>
+      `).join('');
+      
+      if (countEl) countEl.innerText = finalOpenWOs.length;
+    }
+
+    // RENDER DMBD TABLE
+    function applyFilterDmbd() {
+      const q = (document.getElementById("searchInput") ? document.getElementById("searchInput").value : "").toLowerCase();
+      currentFilteredDmbd = dmbdDataset.filter(r => {
+        return (r.wo||'').toLowerCase().includes(q) || (r.unit_code||'').toLowerCase().includes(q) || (r.problem||'').toLowerCase().includes(q) || (r.component||'').toLowerCase().includes(q);
+      });
+      currentPage = 1;
+      renderDmbdTable();
+    }
+
+    function renderDmbdTable() {
+      const tbody = document.getElementById("tableBody");
+      if (!tbody) return;
+      const start = (currentPage - 1) * pageSize;
+      const end = start + pageSize;
+      const pageData = currentFilteredDmbd.slice(start, end);
+
+      const totalPages = Math.ceil(currentFilteredDmbd.length / pageSize) || 1;
+      const pageInfo = document.getElementById("pageInfo");
+      if (pageInfo) pageInfo.innerText = `Hal ${currentPage} / ${totalPages}`;
+      const fCount = document.getElementById("dmbdRowCount");
+      if (fCount) fCount.innerText = currentFilteredDmbd.length;
+
+      tbody.innerHTML = pageData.map((r, idx) => {
+        const isOpen = r.job_status === "OPEN";
+        const statusBadge = isOpen ? `<span class="px-2 py-0.5 rounded font-bold bg-rose-950 text-rose-400 border border-rose-800">OPEN</span>` : `<span class="px-2 py-0.5 rounded font-bold bg-emerald-950 text-emerald-400 border border-emerald-800">CLOSE</span>`;
+        return `
+          <tr class="hover:bg-blue-950/40 transition border-b border-slate-800 bg-slate-900">
+            <td class="p-2 text-center font-bold text-slate-400 sticky-col-1 bg-slate-950 z-20">${start + idx + 1}</td>
+            <td class="p-2 font-mono font-bold text-cyan-400 sticky-col-2 bg-slate-950 z-20">${r.wo}</td>
+            <td class="p-2 text-slate-300">${r.tanggal}</td>
+            <td class="p-2 text-center text-slate-300">${r.week}</td>
+            <td class="p-2 text-slate-200">${r.shift}</td>
+            <td class="p-2 font-bold text-blue-400">${r.unit_code}</td>
+            <td class="p-2 text-slate-400">${r.manufactur}</td>
+            <td class="p-2 text-slate-400">${r.unit_type}</td>
+            <td class="p-2 text-slate-400">${r.unit_model}</td>
+            <td class="p-2 text-right font-mono text-slate-300">${r.hm_bd}</td>
+            <td class="p-2 text-right font-mono text-slate-300">${r.km_bd}</td>
+            <td class="p-2 text-slate-300">${r.bd_date}</td>
+            <td class="p-2 text-center font-mono text-slate-300">${r.bd_time}</td>
+            <td class="p-2 text-center font-mono text-slate-300">${r.start}</td>
+            <td class="p-2 text-center font-mono text-slate-300">${r.stop}</td>
+            <td class="p-2 text-center font-mono font-bold text-cyan-400">${r.total_time !== '-' ? r.total_time + 'h' : '-'}</td>
+            <td class="p-2 text-center font-mono text-slate-300">${r.total_time_shift !== '-' ? r.total_time_shift + 'h' : '-'}</td>
+            <td class="p-2 text-center font-mono font-bold text-amber-400">${r.status_code}</td>
+            <td class="p-2 text-center font-semibold text-slate-300">${r.position_bd}</td>
+            <td class="p-2 max-w-[200px] truncate text-slate-200" title="${r.problem}">${r.problem}</td>
+            <td class="p-2 text-slate-300">${r.component}</td>
+            <td class="p-2 max-w-[240px] truncate text-slate-400" title="${r.tindakan}">${r.tindakan}</td>
+            <td class="p-2 text-center">${statusBadge}</td>
+            <td class="p-2 text-slate-400">${r.mp1}</td><td class="p-2 text-slate-400">${r.mp2}</td>
+            <td class="p-2 text-slate-400">${r.mp3}</td><td class="p-2 text-slate-400">${r.mp4}</td>
+            <td class="p-2 text-slate-400">${r.mp5}</td><td class="p-2 text-slate-400">${r.mp6}</td>
+            <td class="p-2 text-slate-400">${r.mp7}</td><td class="p-2 text-slate-400">${r.mp8}</td>
+            <td class="p-2 text-slate-400">${r.mp9}</td><td class="p-2 text-slate-400">${r.mp10}</td>
+            <td class="p-2 text-slate-400">${r.comp_grup}</td><td class="p-2 text-slate-400">${r.comp_sub}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function nextPage() { const t = Math.ceil(currentFilteredDmbd.length / pageSize) || 1; if (currentPage < t) { currentPage++; renderDmbdTable(); } }
+    function prevPage() { if (currentPage > 1) { currentPage--; renderDmbdTable(); } }
+
+    function renderDatabaseTable() {
+      const tbody = document.getElementById('rawDatabaseBody');
+      if (!tbody) return;
+      tbody.innerHTML = databaseSheetRows.map(r => `
+        <tr class="hover:bg-slate-800/80 transition border-b border-slate-800 bg-slate-900 text-slate-200">
+          <td class="p-1.5 text-center border-r border-slate-700 sticky-col-1 bg-slate-950 z-20">${r.no}</td>
+          <td class="p-1.5 text-cyan-400 font-bold border-r border-slate-700 sticky-col-2 bg-slate-950 z-20">${r.unit}</td>
+          <td class="p-1.5 text-center border-r border-slate-700 text-slate-300">${r.manufactur || 'DONGFENG'}</td>
+          <td class="p-1.5 text-center border-r border-slate-700 text-slate-300">${r.model}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 font-mono text-amber-200/70">${r.hmStart ? Number(r.hmStart).toFixed(1) : '-'}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 font-mono text-amber-200/70">${r.hmEnd ? Number(r.hmEnd).toFixed(1) : '-'}</td>
+          <td class="p-1.5 text-right font-bold border-r border-slate-700 bg-emerald-950/20 text-emerald-400 font-mono">${Number(r.wh||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-400 font-mono">${Number(r.stb||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-rose-300 bg-rose-950/20 font-mono">${Number(r.bs||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 font-mono">${Number(r.b0||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 font-mono">${Number(r.b1||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 font-mono">${Number(r.b2||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 font-mono">${Number(r.b3||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 font-mono">${Number(r.b4||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 font-mono">${Number(r.b5||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 font-mono">${Number(r.b6||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 font-mono">${Number(r.b7||0).toFixed(1)}</td>
+          <td class="p-1.5 text-right font-bold border-r border-slate-700 text-orange-400 bg-orange-950/20 font-mono">${(Number(r.totalBd||0) - Number(r.bs||0)).toFixed(2)}</td>
+          <td class="p-1.5 text-right font-bold border-r border-slate-700 text-rose-400 bg-rose-950/30 font-mono">${Number(r.totalBd||0).toFixed(2)}</td>
+          <td class="p-1.5 text-center font-bold border-r border-slate-700 text-cyan-200 bg-slate-800 font-mono">${document.getElementById('kpiMohh').value}</td>
+          <td class="p-1.5 text-center border-r border-slate-700 text-slate-200 font-mono">${r.bdFreq}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-blue-400 font-semibold font-mono">${Number(r.mtbf||0).toFixed(2)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-emerald-400 font-semibold font-mono">${Number(r.mttr||0).toFixed(2)}</td>
+          <td class="p-1.5 text-right border-r border-slate-700 text-slate-300 bg-blue-950/20 font-mono">${(Number(r.planPa||0) * 100).toFixed(1)}%</td>
+          <td class="p-1.5 text-right font-bold border-r border-slate-700 text-cyan-400 bg-blue-950/40 font-mono">${(Number(r.actualPa||0) * 100).toFixed(1)}%</td>
+          <td class="p-1.5 text-right font-bold border-r border-slate-700 text-emerald-400 bg-emerald-950/20 font-mono">${(Number(r.actualMa||0) * 100).toFixed(1)}%</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderHmUpdateTable() {
+      let thead1 = `<tr>
+        <th rowspan="2" class="p-2 border border-slate-700 sticky-hm-1 bg-slate-950 z-40 min-w-[40px] text-center">NO</th>
+        <th rowspan="2" class="p-2 border border-slate-700 sticky-hm-2 bg-slate-950 z-40 min-w-[80px]">NO UNIT</th>
+        <th rowspan="2" class="p-2 border border-slate-700 bg-slate-950 z-30 min-w-[70px]">MODEL</th>
+        <th rowspan="2" class="p-2 border border-slate-700 bg-slate-950 z-30 min-w-[100px]">LOKASI / JOB</th>`;
+      let thead2 = `<tr>`;
+      
+      for(let i=1; i<=31; i++) {
+        thead1 += `<th colspan="2" class="p-1 border border-slate-700 text-center bg-blue-900/50">${i}</th>`;
+        thead2 += `<th class="p-1 border border-slate-700 text-center bg-slate-800 text-[8px] font-medium text-slate-300 min-w-[35px]">S1</th><th class="p-1 border border-slate-700 text-center bg-slate-800 text-[8px] font-medium text-slate-300 min-w-[35px]">S2</th>`;
+      }
+      
+      thead1 += `<th rowspan="2" class="p-2 border border-slate-700 bg-slate-950 text-right min-w-[65px]">HM Start</th>
+                 <th rowspan="2" class="p-2 border border-slate-700 bg-slate-950 text-right min-w-[65px]">HM End</th>
+                 <th rowspan="2" class="p-2 border border-slate-700 bg-amber-900/40 text-amber-400 text-right min-w-[65px]">WH</th></tr>`;
+      thead2 += `</tr>`;
+      
+      const theadContainer = document.getElementById('hmUpdateHead');
+      if (theadContainer) theadContainer.innerHTML = thead1 + thead2;
+
+      const tbody = document.getElementById('hmUpdateBody');
+      if (!tbody) return;
+
+      let html = '';
+      allGlobalUnits.forEach((u, i) => {
+        const d = hmUpdateData[u] || { model: '-', lokasi: '-', hmStart: 0, hmEnd: 0, wh: 0, shifts: [] };
+        
+        let model = d.model !== '-' ? d.model : 'K51Y';
+        if (u.startsWith('EX-')) model = '938E HD'; else if (u.startsWith('MG-')) model = 'CLG4230D'; else if (u.startsWith('DZ-')) model = 'CLGB230';
+        
+        let lokasi = d.lokasi !== '-' ? d.lokasi : 'KONAWE SCM-TII';
+        if (u.startsWith('EX-')) lokasi = 'DIGGING'; else if (!u.startsWith('DT-')) lokasi = 'SUPPORT';
+        
+        let hStart = d.hmStart || (3000 + (i*17)%500);
+        let hEnd = d.hmEnd || (hStart + (300 + (i*17)%180));
+        let whVal = d.wh || (hEnd - hStart);
+
+        let rowHtml = `<tr class="hover:bg-slate-800/80 transition border-b border-slate-800">
+          <td class="p-1.5 border border-slate-700 text-center sticky-hm-1 bg-slate-900 z-10">${i + 1}</td>
+          <td class="p-1.5 border border-slate-700 font-bold text-cyan-400 sticky-hm-2 bg-slate-900 z-10">${u}</td>
+          <td class="p-1.5 border border-slate-700 text-slate-300 truncate">${model}</td>
+          <td class="p-1.5 border border-slate-700 text-slate-400 truncate">${lokasi}</td>`;
+
+        for(let day=0; day<62; day++) {
+           let sVal = (d.shifts && d.shifts[day] !== undefined && d.shifts[day] !== "") ? d.shifts[day] : '-';
+           if (sVal !== '-' && !isNaN(sVal)) sVal = Number(sVal).toFixed(1);
+           rowHtml += `<td class="p-1 border border-slate-700 text-center text-[10px] text-slate-400 bg-slate-900">${sVal}</td>`;
+        }
+
+        rowHtml += `<td class="p-1.5 border border-slate-700 text-right font-mono text-cyan-300">${Number(hStart).toFixed(1)}</td><td class="p-1.5 border border-slate-700 text-right font-mono text-cyan-300">${Number(hEnd).toFixed(1)}</td><td class="p-1.5 border border-slate-700 text-right font-bold text-amber-400 bg-amber-950/20 font-mono">${Number(whVal).toFixed(1)}</td></tr>`;
+        html += rowHtml;
+      });
+
+      tbody.innerHTML = html;
+      const hmCnt = document.getElementById('hmRowCount');
+      if (hmCnt) hmCnt.innerText = allGlobalUnits.length;
+    }
+  </script>
+</body>
+</html>
