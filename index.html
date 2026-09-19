@@ -102,7 +102,7 @@
           <div class="flex items-center space-x-2">
             <div id="uploadActionArea" class="flex space-x-2">
               <input type="file" id="dmbdUpload" accept=".xlsx, .xls" class="hidden" onchange="handleDmbdUpload(event)" />
-              <button onclick="document.getElementById('dmbdUpload').click()" class="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition flex items-center gap-1 shadow"><i class="fa-solid fa-file-excel"></i> DMBD</button>
+              <button onclick="document.getElementById('dmbdUpload').click()" class="bg-blue-600 hover:bg-blue-700 text-white border border-blue-500 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition flex items-center gap-1 shadow"><i class="fa-solid fa-file-excel"></i> DMBD & PA</button>
               <input type="file" id="hmUpload" accept=".xlsx, .xls" class="hidden" onchange="handleHmUpload(event)" />
               <button onclick="document.getElementById('hmUpload').click()" class="bg-amber-500 hover:bg-amber-600 text-slate-900 border border-amber-500 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition flex items-center gap-1 shadow"><i class="fa-solid fa-gauge-high"></i> HM</button>
             </div>
@@ -113,7 +113,6 @@
     </header>
 
     <main class="max-w-[1750px] mx-auto px-4 py-4 flex-1 w-full space-y-4 overflow-hidden">
-      
       <!-- TAB 1: DASHBOARD KPI -->
       <div id="viewKpi" class="space-y-3">
         <div class="w-full border-2 border-[#00e5ff] p-4 bg-black shadow-2xl space-y-3">
@@ -149,19 +148,22 @@
         </div>
       </div>
 
-      <!-- TAB DAILY PA (AUTO-CALCULATE DARI DMBD) -->
+      <!-- TAB DAILY PA (MENYALIN FORMAT DARI SHEET EXCEL) -->
       <div id="viewDailyPa" class="hidden space-y-3">
         <div class="bg-slate-900 p-4 rounded-xl border border-emerald-500/40 shadow flex justify-between items-center text-xs">
           <div>
             <h3 class="font-bold text-emerald-400 text-sm uppercase"><i class="fa-solid fa-calendar-day mr-2"></i>Daily Monitoring PA Equipment</h3>
-            <p class="text-[11px] text-slate-400 mt-0.5">Dihitung otomatis dari Data DMBD berdasarkan Filter Bulan/Tahun. Nilai PA akan berkurang sesuai jumlah jam kerusakan. Total: <b id="paRowCount" class="text-white">0</b> Unit.</p>
+            <p class="text-[11px] text-slate-400 mt-0.5">Otomatis menarik format asli dari sheet "Daily PA" pada file Excel yang Anda upload. <span class="text-rose-400 font-bold ml-1">Nilai di bawah 50% akan berwarna Merah.</span> Total: <b id="paRowCount" class="text-white">0</b> Unit.</p>
           </div>
         </div>
         <div class="bg-slate-900 border border-slate-700 rounded-lg shadow overflow-hidden relative">
           <div class="overflow-x-auto custom-scroll max-h-[640px] w-full">
             <table class="w-full text-left border-collapse text-[10px] whitespace-nowrap table-fixed">
-              <thead id="paTableHead" class="sticky top-0 z-40 bg-slate-950 text-slate-300 border-b border-slate-600 font-bold uppercase text-[9px] shadow-sm"></thead>
-              <tbody id="paTableBody" class="divide-y divide-slate-800 font-mono text-[10.5px]"></tbody>
+              <thead id="paTableHead" class="sticky top-0 z-40 bg-slate-950 text-slate-300 border-b border-slate-600 font-bold uppercase text-[9px] shadow-sm">
+                <!-- Diisi via JS -->
+              </thead>
+              <tbody id="paTableBody" class="divide-y divide-slate-800 font-mono text-[10.5px]">
+              </tbody>
             </table>
           </div>
         </div>
@@ -322,6 +324,9 @@
         db.ref('hmUpdateData').on('value', (snapshot) => {
           if (snapshot.exists()) { hmUpdateData = snapshot.val(); refreshAllViews(); } else { hmUpdateData = {}; refreshAllViews(); }
         });
+        db.ref('dailyPaDataset').on('value', (snapshot) => {
+          if (snapshot.exists()) { dailyPaDataset = snapshot.val(); refreshAllViews(); } else { dailyPaDataset = []; refreshAllViews(); }
+        });
       } else {
         refreshAllViews();
       }
@@ -391,6 +396,7 @@
     let activeDmbdDataset = []; 
     let databaseSheetRows = [];
     let hmUpdateData = {};
+    let dailyPaDataset = []; // Format baru khusus PA
     
     const MASTER_UNITS = [
       "DT-001", "DT-002", "DT-003", "DT-004", "DT-005", "DT-006", "DT-007", "DT-008", "DT-009", "DT-010",
@@ -423,7 +429,7 @@
     let currentKpiData = { units: [], planPA: [], actualPA: [], actualMA: [], acvPA: [], totalSummary: { planPA: 85.74, actualPA: 0, actualMA: 0, acvPA: 0 }, mtbf: [], mttr: [], targetMtbf: [], targetMttr: [], statusCodePie: { labels: ['BS', 'B0', 'B1'], values: [50, 30, 20] }, baHours: {} };
 
     // =====================================
-    // HELPER TANGGAL SUPER KETAT
+    // HELPER TANGGAL
     // =====================================
     function parseExcelDate(val) {
         if (!val) return "";
@@ -437,7 +443,7 @@
     }
 
     // =====================================
-    // UPLOAD DMBD DENGAN FORMAT TANGGAL YANG BENAR
+    // UPLOAD DMBD SEKALIGUS DAILY PA (KODE BARU SUPER KUAT)
     // =====================================
     function handleDmbdUpload(event) {
       const file = event.target.files[0];
@@ -447,59 +453,110 @@
         try {
           const data = new Uint8Array(e.target.result);
           const wb = XLSX.read(data, { type: 'array', cellDates: true });
-          const sheetName = wb.SheetNames.find(s => s.trim().toUpperCase() === 'DMBD') || wb.SheetNames[0];
-          const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, defval: "" });
+
+          // 1. PROSES SHEET DMBD
+          const sheetDmbd = wb.SheetNames.find(s => s.trim().toUpperCase().includes('DMBD')) || wb.SheetNames[0];
+          const rawDmbd = XLSX.utils.sheet_to_json(wb.Sheets[sheetDmbd], { header: 1, defval: "" });
 
           let hIdx = -1;
-          for (let i = 0; i < Math.min(raw.length, 15); i++) {
-            if (raw[i].map(c => String(c).trim().toUpperCase()).includes("NO WO")) { hIdx = i; break; }
+          for (let i = 0; i < Math.min(rawDmbd.length, 15); i++) {
+            if (rawDmbd[i].map(c => String(c).trim().toUpperCase()).includes("NO WO")) { hIdx = i; break; }
           }
           if (hIdx !== -1) {
             const parsed = [];
-            for (let i = hIdx + 1; i < raw.length; i++) {
-              const r = raw[i];
+            for (let i = hIdx + 1; i < rawDmbd.length; i++) {
+              const r = rawDmbd[i];
               if (!r[1]) continue;
               parsed.push({
-                no: parsed.length + 1, 
-                wo: String(r[1] || "").trim(), 
-                tanggal: parseExcelDate(r[2]), 
-                week: String(r[3] || ""), 
-                shift: String(r[4] || ""), 
-                unit_code: String(r[5] || "").trim().toUpperCase(), 
-                manufactur: String(r[6] || ""), 
-                unit_type: String(r[7] || ""), 
-                unit_model: String(r[8] || ""), 
-                hm_bd: String(r[9] || ""), 
-                km_bd: String(r[10] || ""), 
-                bd_date: parseExcelDate(r[11]), 
-                bd_time: String(r[12] || ""), 
-                start: String(r[13] || ""), 
-                stop: String(r[14] || ""), 
-                total_time: (r[15] !== "" && !isNaN(r[15])) ? Number(r[15]).toFixed(2) : String(r[15] || "0"), 
-                total_time_shift: String(r[16] || ""), 
-                status_code: String(r[17] || "B0").trim().toUpperCase(), 
-                position_bd: String(r[18] || ""), 
-                problem: String(r[19] || ""), 
-                component: String(r[20] || ""), 
-                tindakan: String(r[21] || ""), 
-                job_status: String(r[22] || "OPEN").trim().toUpperCase(), 
-                mp1: String(r[23] || ""), mp2: String(r[24] || ""), mp3: String(r[25] || ""), mp4: String(r[26] || ""), mp5: String(r[27] || ""), 
-                mp6: String(r[28] || ""), mp7: String(r[29] || ""), mp8: String(r[30] || ""), mp9: String(r[31] || ""), mp10: String(r[32] || ""), 
-                comp_grup: String(r[33] || ""), comp_sub: String(r[34] || "")
+                no: parsed.length + 1, wo: String(r[1] || "").trim(), tanggal: parseExcelDate(r[2]), week: String(r[3] || ""), shift: String(r[4] || ""), unit_code: String(r[5] || "").trim().toUpperCase(), manufactur: String(r[6] || ""), unit_type: String(r[7] || ""), unit_model: String(r[8] || ""), hm_bd: String(r[9] || ""), km_bd: String(r[10] || ""), bd_date: parseExcelDate(r[11]), bd_time: String(r[12] || ""), start: String(r[13] || ""), stop: String(r[14] || ""), total_time: (r[15] !== "" && !isNaN(r[15])) ? Number(r[15]).toFixed(2) : String(r[15] || "0"), total_time_shift: String(r[16] || ""), status_code: String(r[17] || "B0").trim().toUpperCase(), position_bd: String(r[18] || ""), problem: String(r[19] || ""), component: String(r[20] || ""), tindakan: String(r[21] || ""), job_status: String(r[22] || "OPEN").trim().toUpperCase(), mp1: String(r[23] || ""), mp2: String(r[24] || ""), mp3: String(r[25] || ""), mp4: String(r[26] || ""), mp5: String(r[27] || ""), mp6: String(r[28] || ""), mp7: String(r[29] || ""), mp8: String(r[30] || ""), mp9: String(r[31] || ""), mp10: String(r[32] || ""), comp_grup: String(r[33] || ""), comp_sub: String(r[34] || "")
               });
             }
             dmbdDataset = parsed;
-            refreshAllViews(); // PAKSA REFRESH OFFLINE
-            alert(`File DMBD Sukses Diupload! (${dmbdDataset.length} Baris)`);
             if (db) db.ref('dmbdDataset').set(dmbdDataset).catch(err => console.log(err));
           }
-        } catch (err) { alert("Gagal membaca file DMBD: " + err.message); }
+
+          // 2. PROSES SHEET DAILY PA DENGAN PEMBACAAN KOLOM ABSOLUT
+          const sheetPa = wb.SheetNames.find(s => s.trim().toUpperCase().includes('DAILY PA') || s.trim().toUpperCase() === 'PA');
+          if (sheetPa) {
+             const rawPa = XLSX.utils.sheet_to_json(wb.Sheets[sheetPa], { header: 1, defval: "" });
+             let headerRowIndex = -1, unitColIdx = -1, modelColIdx = -1, mtdColIdx = -1, dayStartIndex = -1;
+
+             for (let i = 0; i < Math.min(rawPa.length, 20); i++) {
+                 const rowStrs = rawPa[i].map(c => String(c).trim().toUpperCase());
+                 if (rowStrs.includes("CODE UNIT") || rowStrs.includes("UNIT")) {
+                     headerRowIndex = i;
+                     unitColIdx = rowStrs.indexOf("CODE UNIT") !== -1 ? rowStrs.indexOf("CODE UNIT") : rowStrs.indexOf("UNIT");
+                     modelColIdx = rowStrs.indexOf("MODEL");
+                     
+                     for(let c = unitColIdx + 1; c < rowStrs.length; c++) {
+                         if(rowStrs[c].startsWith("1-") || rowStrs[c] === "1" || rowStrs[c].includes("01/")) {
+                             dayStartIndex = c; break;
+                         }
+                     }
+                     if (dayStartIndex === -1) dayStartIndex = modelColIdx !== -1 ? modelColIdx + 1 : unitColIdx + 2;
+                     mtdColIdx = rowStrs.findIndex(c => c.includes("MTD") || c.includes("PA MTD"));
+                     break;
+                 }
+             }
+
+             if (headerRowIndex !== -1 && unitColIdx !== -1) {
+                 const parsedPa = [];
+                 for (let i = headerRowIndex + 1; i < rawPa.length; i++) {
+                     const r = rawPa[i];
+                     const unit = String(r[unitColIdx] || "").trim().toUpperCase();
+                     if (!unit || unit === '-' || unit.includes('UNIT') || unit.startsWith('AC')) continue;
+                     
+                     let model = modelColIdx !== -1 ? String(r[modelColIdx]) : "-";
+                     let days = [];
+                     
+                     for(let d=0; d<31; d++) {
+                         let val = r[dayStartIndex + d];
+                         if (val === undefined || val === "") val = "-";
+                         else {
+                             if (typeof val === 'number') {
+                                 if (val <= 1 && val >= 0 && !Number.isInteger(val)) val = Math.round(val * 100);
+                                 else if (val === 1) val = 100;
+                                 else if (val === 0) val = 0;
+                                 else val = Math.round(val);
+                             } else {
+                                 let strVal = String(val).replace('%','').replace(',', '.').trim();
+                                 if (!isNaN(strVal) && strVal !== "") val = Math.round(Number(strVal));
+                                 else val = "-";
+                             }
+                         }
+                         days.push(val);
+                     }
+                     
+                     let mtd = "-";
+                     if (mtdColIdx !== -1 && r[mtdColIdx] !== undefined && r[mtdColIdx] !== "") {
+                         let val = r[mtdColIdx];
+                         if (typeof val === 'number') {
+                             if (val <= 1 && val >= 0 && !Number.isInteger(val)) mtd = Math.round(val * 100);
+                             else if (val === 1) mtd = 100;
+                             else if (val === 0) mtd = 0;
+                             else mtd = Math.round(val);
+                         } else {
+                             let strVal = String(val).replace('%','').replace(',', '.').trim();
+                             if(!isNaN(strVal)) mtd = Math.round(Number(strVal));
+                         }
+                     }
+                     parsedPa.push({ unit, model, days, mtd });
+                 }
+                 dailyPaDataset = parsedPa;
+                 if(db) db.ref('dailyPaDataset').set(dailyPaDataset).catch(e => console.log(e));
+             }
+          }
+
+          refreshAllViews(); // PAKSA REFRESH
+          alert(`File DMBD & Daily PA Sukses Diupload!`);
+          
+        } catch (err) { alert("Gagal membaca file DMBD/PA: " + err.message); }
       };
       reader.readAsArrayBuffer(file);
     }
 
     // =====================================
-    // UPLOAD EXCEL HM UPDATE - VERSI AWAL YANG NORMAL
+    // UPLOAD EXCEL HM UPDATE
     // =====================================
     function handleHmUpload(event) {
       const file = event.target.files[0];
@@ -599,7 +656,6 @@
          if(!d || d === "-") return false;
 
          let rYear = ""; let rMonth = "";
-         // Karena kita pakai parseExcelDate, format pasti YYYY-MM-DD
          const parts = d.split('-'); 
          if(parts.length >= 3) {
              rYear = parts[0]; 
@@ -956,69 +1012,67 @@
     }
 
     // =====================================
-    // DAILY PA - DIHITUNG OTOMATIS DARI DMBD
+    // RENDER DAILY PA (EKSTRAKSI ABSOLUT DARI SHEET PA)
     // =====================================
     function renderDailyPaTable() {
-      const thead = document.getElementById('paTableHead'); const tbody = document.getElementById('paTableBody');
+      const thead = document.getElementById('paTableHead');
+      const tbody = document.getElementById('paTableBody');
       if (!thead || !tbody) return;
 
-      const selectedMonth = document.getElementById('globalMonth') ? document.getElementById('globalMonth').value : 'ALL';
+      if (!dailyPaDataset || dailyPaDataset.length === 0) {
+         thead.innerHTML = '';
+         tbody.innerHTML = '<tr><td class="p-8 text-center text-slate-500 font-bold italic">Data Daily PA belum tersedia. Silakan upload file Excel yang berisi sheet "Daily PA" melalui tombol DMBD & PA.</td></tr>';
+         return;
+      }
+
+      const selectedMonth = document.getElementById('globalMonth') ? document.getElementById('globalMonth').value : '09';
       const monthNames = { "01":"Jan", "02":"Feb", "03":"Mar", "04":"Apr", "05":"May", "06":"Jun", "07":"Jul", "08":"Aug", "09":"Sep", "10":"Oct", "11":"Nov", "12":"Dec", "ALL":"Bulan" };
       const mName = monthNames[selectedMonth] || "Bulan";
 
-      let htmlHead = `<tr><th class="p-2 border border-slate-700 bg-emerald-950 text-emerald-400 font-bold sticky-col-1 z-40 w-10 text-center">NO</th><th class="p-2 border border-slate-700 bg-emerald-950 text-emerald-400 font-bold sticky-col-2 z-40 text-center">CODE UNIT</th><th class="p-2 border border-slate-700 bg-emerald-950 text-emerald-400 font-bold z-30 text-center min-w-[120px]">MODEL</th>`;
-      for(let i=1; i<=31; i++) { htmlHead += `<th class="p-1 border border-slate-700 bg-slate-900 text-slate-400 font-bold text-center min-w-[45px]">${i}-${mName}</th>`; }
-      htmlHead += `<th class="p-2 border border-slate-700 bg-emerald-900 text-emerald-300 font-bold text-center">PA MTD</th></tr>`;
+      let htmlHead = `<tr>
+        <th class="p-2 border border-slate-700 bg-emerald-950 text-emerald-400 font-bold sticky-col-1 z-40 w-10 text-center">NO</th>
+        <th class="p-2 border border-slate-700 bg-emerald-950 text-emerald-400 font-bold sticky-col-2 z-40 text-center min-w-[80px]">CODE UNIT</th>
+        <th class="p-2 border border-slate-700 bg-emerald-950 text-emerald-400 font-bold z-30 text-center min-w-[100px]">MODEL</th>`;
+      for(let i=1; i<=31; i++) { 
+         htmlHead += `<th class="p-1 border border-slate-700 bg-slate-900 text-slate-400 font-bold text-center min-w-[40px]">${i}-${mName}</th>`; 
+      }
+      htmlHead += `<th class="p-2 border border-slate-700 bg-emerald-900 text-emerald-300 font-bold text-center min-w-[60px]">PA MTD</th></tr>`;
       thead.innerHTML = htmlHead;
 
-      const dtMap = {};
-      activeDmbdDataset.forEach(r => {
-         const u = r.unit_code; if(!u) return;
-         if(!dtMap[u]) dtMap[u] = Array(32).fill(0);
-         
-         const dateStr = r.bd_date || r.tanggal; 
-         if(dateStr) { 
-             let day = -1;
-             const parts = String(dateStr).split('-'); 
-             if(parts.length >= 3) { 
-                 day = parseInt(parts[2], 10); 
-             }
-             
-             let hoursStr = String(r.total_time).replace(',', '.');
-             const hours = parseFloat(hoursStr) || 0; 
-             if(day >= 1 && day <= 31) { dtMap[u][day] += hours; }
-         }
-      });
-
-      const currentDay = parseInt(document.getElementById('kpiDays').value) || 29;
       let htmlBody = '';
-
-      databaseSheetRows.forEach((r, idx) => {
-         const u = r.unit; const dts = dtMap[u] || Array(32).fill(0);
-         let rowHtml = `<tr class="hover:bg-slate-800 transition border-b border-slate-700 bg-slate-900 text-slate-300 font-semibold"><td class="p-1.5 text-center sticky-col-1 bg-slate-950 z-20 border-r border-slate-700 font-bold">${idx+1}</td><td class="p-1.5 text-cyan-400 sticky-col-2 bg-slate-950 z-20 border-r border-slate-700 font-bold">${u}</td><td class="p-1.5 text-slate-400 border-r border-slate-700">${r.model}</td>`;
+      dailyPaDataset.forEach((row, idx) => {
+         htmlBody += `<tr class="hover:bg-slate-800 transition border-b border-slate-700 bg-slate-900 text-slate-300 font-semibold">
+           <td class="p-1.5 text-center sticky-col-1 bg-slate-950 z-20 border-r border-slate-700 font-bold">${idx + 1}</td>
+           <td class="p-1.5 font-mono font-bold text-cyan-400 sticky-col-2 bg-slate-950 z-20 border-r border-slate-700">${row.unit}</td>
+           <td class="p-1.5 text-center text-slate-400 border-r border-slate-700">${row.model}</td>`;
          
-         let totalDtMtd = 0;
-         for(let i=1; i<=31; i++) {
-            let paStr = "100%";
-            if(i <= currentDay) { 
-                totalDtMtd += dts[i]; 
-                let dt = dts[i] > 24 ? 24 : dts[i]; 
-                paStr = Math.round(((24 - dt) / 24) * 100) + "%"; 
-            } else { paStr = "-"; }
+         for (let i = 0; i < 31; i++) {
+            let val = row.days[i];
+            let displayVal = val === "-" ? "-" : val + "%";
+            let colorClass = "text-slate-300";
             
-            let isBreakdown = (dts[i] > 0 && i <= currentDay);
-            let textColor = isBreakdown ? "text-rose-400 font-bold" : "text-slate-400 font-mono";
-            rowHtml += `<td class="p-1 text-center border-r border-slate-700 ${textColor}">${paStr}</td>`;
+            if (val !== "-") {
+                if (val < 50) colorClass = "text-rose-500 font-bold bg-rose-950/30";
+                else if (val < 85) colorClass = "text-amber-400";
+                else colorClass = "text-emerald-400";
+            }
+            htmlBody += `<td class="p-1 text-center border-r border-slate-700 font-mono ${colorClass}">${displayVal}</td>`;
          }
-         
-         let paMtd = 100;
-         if(currentDay > 0) { let maxHrs = currentDay * 24; paMtd = Math.round(((maxHrs - totalDtMtd) / maxHrs) * 100); }
-         let mtdColor = paMtd >= 85 ? "text-emerald-400 bg-emerald-950/30" : "text-rose-400 bg-rose-950/30";
-         rowHtml += `<td class="p-1 text-center font-bold ${mtdColor} border-l border-slate-700">${paMtd}%</td></tr>`;
-         htmlBody += rowHtml;
+
+         let mtdVal = row.mtd;
+         let mtdDisplay = mtdVal === "-" ? "-" : mtdVal + "%";
+         let mtdColor = "text-slate-300";
+         if (mtdVal !== "-") {
+             if (mtdVal < 50) mtdColor = "text-rose-500 font-bold bg-rose-950/40";
+             else if (mtdVal < 85) mtdColor = "text-amber-400 font-bold";
+             else mtdColor = "text-emerald-400 font-bold bg-emerald-950/30";
+         }
+         htmlBody += `<td class="p-1.5 text-center font-bold ${mtdColor} border-l border-slate-700 text-[11px]">${mtdDisplay}</td></tr>`;
       });
+
       tbody.innerHTML = htmlBody;
-      const paCnt = document.getElementById('paRowCount'); if(paCnt) paCnt.innerText = databaseSheetRows.length;
+      const paCount = document.getElementById('paRowCount'); 
+      if(paCount) paCount.innerText = dailyPaDataset.length;
     }
 
     // =====================================
@@ -1065,7 +1119,7 @@
     function renderHmUpdateTable() {
       let thead1 = `<tr><th rowspan="2" class="p-2 border border-slate-700 sticky-hm-1 bg-slate-950 z-40 min-w-[40px] text-center">NO</th><th rowspan="2" class="p-2 border border-slate-700 sticky-hm-2 bg-slate-950 z-40 min-w-[80px]">NO UNIT</th><th rowspan="2" class="p-2 border border-slate-700 bg-slate-950 z-30 min-w-[70px]">MODEL</th><th rowspan="2" class="p-2 border border-slate-700 bg-slate-950 z-30 min-w-[100px]">LOKASI / JOB</th>`;
       let thead2 = `<tr>`;
-      for(let i=1; i<=31; i++) { thead1 += `<th colspan="2" class="p-1 border border-slate-700 text-center bg-blue-900/50">${i}</th>`; thead2 += `<th class="p-1 border border-slate-700 text-center bg-slate-800 text-[8px] font-medium text-slate-300 min-w-[35px]">S1</th><th class="p-1 border border-slate-700 text-center bg-slate-800 text-[8px] font-medium text-slate-300 min-w-[35px]">S2</th>`; }
+      for(let i=1; i<=31; i++) { thead1 += `<th colspan="2" class="p-1 border border-slate-700 text-center bg-blue-900/50">${i}</th>`; be_str = ""; thead2 += `<th class="p-1 border border-slate-700 text-center bg-slate-800 text-[8px] font-medium text-slate-300 min-w-[35px]">S1</th><th class="p-1 border border-slate-700 text-center bg-slate-800 text-[8px] font-medium text-slate-300 min-w-[35px]">S2</th>`; }
       thead1 += `<th rowspan="2" class="p-2 border border-slate-700 bg-slate-950 text-right min-w-[65px]">HM Start</th><th rowspan="2" class="p-2 border border-slate-700 bg-slate-950 text-right min-w-[65px]">HM End</th><th rowspan="2" class="p-2 border border-slate-700 bg-amber-900/40 text-amber-400 text-right min-w-[65px]">WH</th></tr>`; thead2 += `</tr>`;
       const theadContainer = document.getElementById('hmUpdateHead'); if (theadContainer) theadContainer.innerHTML = thead1 + thead2;
 
